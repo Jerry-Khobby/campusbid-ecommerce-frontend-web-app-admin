@@ -19,17 +19,21 @@ export default function AdminLayout({
     pathname === "/admin/reset-password";
 
   if (isLoginPage) {
-    return <>{children}</>;
+    return (
+      <NotificationProvider>
+        <UserProvider>{children}</UserProvider>
+      </NotificationProvider>
+    );
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
-      <NotificationProvider>
-        <UserProvider>
+    <NotificationProvider>
+      <UserProvider>
+        <div className="flex min-h-screen bg-gray-50">
           <AdminSidebar />
-        </UserProvider>
-        <main className="flex-1 overflow-auto">{children}</main>
-      </NotificationProvider>
-    </div>
+          <main className="flex-1 overflow-auto">{children}</main>
+        </div>
+      </UserProvider>
+    </NotificationProvider>
   );
 }

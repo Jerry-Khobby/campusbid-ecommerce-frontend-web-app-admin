@@ -175,7 +175,12 @@ export default function AdminSettingsPage() {
                   <div className="w-24 h-24 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center text-white text-3xl font-bold shadow-lg">
                     {adminName.charAt(0)}
                   </div>
-                  <Button type="button" size="sm" className="absolute bottom-0 right-0 rounded-full w-8 h-8 p-0">
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="absolute bottom-0 right-0 rounded-full w-8 h-8 p-0"
+                    onClick={() => addNotification("Profile photo upload coming soon!", "info")}
+                  >
                     📷
                   </Button>
                 </div>
@@ -298,21 +303,27 @@ export default function AdminSettingsPage() {
                 <p className="font-medium">Change Password</p>
                 <p className="text-sm text-gray-600">Update your admin password</p>
               </div>
-              <Button variant="outline">Change Password</Button>
+              <Button variant="outline" onClick={() => addNotification("Password change coming soon!", "info")}>
+                Change Password
+              </Button>
             </div>
             <div className="flex items-center justify-between p-4 border rounded-lg">
               <div>
                 <p className="font-medium">Two-Factor Authentication</p>
                 <p className="text-sm text-gray-600">Add an extra layer of security</p>
               </div>
-              <Button variant="outline">Enable 2FA</Button>
+              <Button variant="outline" onClick={() => addNotification("Two-factor authentication coming soon!", "info")}>
+                Enable 2FA
+              </Button>
             </div>
             <div className="flex items-center justify-between p-4 border rounded-lg">
               <div>
                 <p className="font-medium">Active Sessions</p>
                 <p className="text-sm text-gray-600">Manage your active login sessions</p>
               </div>
-              <Button variant="outline">View Sessions</Button>
+              <Button variant="outline" onClick={() => addNotification("Session management coming soon!", "info")}>
+                View Sessions
+              </Button>
             </div>
           </div>
         </CardContent>

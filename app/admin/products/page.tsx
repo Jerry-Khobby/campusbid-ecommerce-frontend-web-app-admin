@@ -178,6 +178,13 @@ export default function AdminProductsPage() {
                     </td>
                   </tr>
                 ))}
+                {filteredProducts.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">
+                      No products match your search.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>

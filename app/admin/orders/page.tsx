@@ -275,6 +275,13 @@ export default function AdminOrdersPage() {
                     </td>
                   </tr>
                 ))}
+                {filteredOrders.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-500">
+                      No orders match your search.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>

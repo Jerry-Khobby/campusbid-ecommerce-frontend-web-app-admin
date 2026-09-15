@@ -320,6 +320,13 @@ export default function AdminCustomersPage() {
                     </td>
                   </tr>
                 ))}
+                {filteredCustomers.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">
+                      No customers match your search.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
