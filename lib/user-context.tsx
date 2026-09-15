@@ -1,107 +1,92 @@
 "use client";
 
 import type React from "react";
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
+import { loginUser, logoutUser } from "./api/auth";
+import { clearTokens } from "./api/token-storage";
+import type { SafeUser } from "./api/types";
 
 export interface User {
   id: string;
-  name: string;
   email: string;
-  phone: string;
-  avatar: string;
-  profileImage?: string;
-  joinDate: string;
-  userType: "buyer" | "vendor";
-  stats: {
-    orders: number;
-    bidsWon: number;
-    rating: number;
-  };
-  savedItems: number[];
-  role?: "admin" | "user";
+  role: SafeUser["role"];
+  // The backend has no display name for an admin account (it's a promoted
+  // student, see docs/users.md) — kept optional so existing call sites that
+  // fall back to a default (e.g. "Admin User") keep working.
+  name?: string;
 }
 
 interface UserContextType {
   user: User | null;
-  setUser: React.Dispatch<React.SetStateAction<User | null>>;
   isLoggedIn: boolean;
-  login: (email: string, password: string, name: string) => void;
-  logout: () => void;
-  updateProfile: (updates: Partial<User>) => void;
-  toggleSaveItem: (itemId: number) => void;
-  updateProfileImage: (imageUrl: string) => void;
+  isLoading: boolean;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
-const defaultUser: User = {
-  id: "user-001",
-  name: "Alex Student",
-  email: "alex@university.edu",
-  phone: "+1 (555) 123-4567",
-  avatar: "AS",
-  profileImage: undefined,
-  joinDate: "January 2024",
-  userType: "buyer",
-  stats: {
-    orders: 12,
-    bidsWon: 8,
-    rating: 4.8,
-  },
-  savedItems: [],
-  role: "user",
-};
+const STORAGE_KEY = "campusbid-admin-user";
+
+// The backend has no admin-accessible "who am I" endpoint (GET /users/profile
+// is @Roles("student")-only), so the logged-in user is captured from the
+// login response and persisted here, instead of re-fetched on each load.
+function readStoredUser(): User | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as User) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredUser(user: User | null): void {
+  try {
+    if (user) localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+    else localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // localStorage can be unavailable (private browsing, disabled storage) —
+    // the session simply won't persist across reloads in that case.
+  }
+}
+
+function toUser(safeUser: SafeUser): User {
+  return { id: safeUser._id, email: safeUser.email, role: safeUser.role };
+}
 
 export function UserProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const login = (email: string, password: string, name: string) => {
-    if (email && password && name) {
-      setUser({ ...defaultUser, email, name });
-      setIsLoggedIn(true);
+  useEffect(() => {
+    setUser(readStoredUser());
+    setIsLoading(false);
+  }, []);
+
+  const login = async (email: string, password: string) => {
+    const { user: safeUser } = await loginUser({ email, password });
+
+    if (safeUser.role !== "admin") {
+      clearTokens();
+      throw new Error("This account does not have admin access.");
     }
+
+    const nextUser = toUser(safeUser);
+    setUser(nextUser);
+    writeStoredUser(nextUser);
   };
 
-  const logout = () => {
-    setUser(null);
-    setIsLoggedIn(false);
-  };
-
-  const updateProfile = (updates: Partial<User>) => {
-    if (user) {
-      setUser({ ...user, ...updates });
-    }
-  };
-
-  const toggleSaveItem = (itemId: number) => {
-    if (user) {
-      const savedItems = user.savedItems.includes(itemId)
-        ? user.savedItems.filter((id) => id !== itemId)
-        : [...user.savedItems, itemId];
-      setUser({ ...user, savedItems });
-    }
-  };
-
-  const updateProfileImage = (imageUrl: string) => {
-    if (user) {
-      setUser({ ...user, profileImage: imageUrl });
+  const logout = async () => {
+    try {
+      await logoutUser();
+    } finally {
+      setUser(null);
+      writeStoredUser(null);
     }
   };
 
   return (
-    <UserContext.Provider
-      value={{
-        user,
-        setUser,
-        isLoggedIn,
-        login,
-        logout,
-        updateProfile,
-        toggleSaveItem,
-        updateProfileImage,
-      }}
-    >
+    <UserContext.Provider value={{ user, isLoggedIn: user !== null, isLoading, login, logout }}>
       {children}
     </UserContext.Provider>
   );

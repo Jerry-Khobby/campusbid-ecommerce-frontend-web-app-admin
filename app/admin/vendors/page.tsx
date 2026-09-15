@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,145 +13,82 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useNotification } from "@/lib/notification-context";
+import { ApiError } from "@/lib/api/client";
+import { approveVendor, fetchAdminVendors, suspendVendor } from "@/lib/api/vendors";
+import type { SafeVendor } from "@/lib/api/types";
 
-interface Vendor {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  businessName: string;
-  category: string;
-  totalSales: number;
-  totalOrders: number;
-  rating: number;
-  status: "active" | "suspended" | "pending";
-  joinedDate: string;
+const SEARCH_DEBOUNCE_MS = 300;
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof ApiError ? error.message : "Something went wrong. Please try again.";
 }
 
 export default function AdminVendorsPage() {
   const { addNotification } = useNotification();
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
+  const [vendors, setVendors] = useState<SafeVendor[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [selectedVendor, setSelectedVendor] = useState<SafeVendor | null>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
+  const [pendingActionId, setPendingActionId] = useState<string | null>(null);
 
-  // Mock vendor data
-  const [vendors, setVendors] = useState<Vendor[]>([
-    {
-      id: "V001",
-      name: "John Smith",
-      email: "john@campusstore.com",
-      phone: "+1234567890",
-      businessName: "Campus Store",
-      category: "General Store",
-      totalSales: 15420,
-      totalOrders: 234,
-      rating: 4.8,
-      status: "active",
-      joinedDate: "2024-01-15",
-    },
-    {
-      id: "V002",
-      name: "Sarah Johnson",
-      email: "sarah@techhub.com",
-      phone: "+1234567891",
-      businessName: "Tech Hub",
-      category: "Electronics",
-      totalSales: 12350,
-      totalOrders: 189,
-      rating: 4.9,
-      status: "active",
-      joinedDate: "2024-02-20",
-    },
-    {
-      id: "V003",
-      name: "Mike Davis",
-      email: "mike@bookcorner.com",
-      phone: "+1234567892",
-      businessName: "Book Corner",
-      category: "Books & Stationery",
-      totalSales: 9870,
-      totalOrders: 156,
-      rating: 4.7,
-      status: "active",
-      joinedDate: "2024-03-10",
-    },
-    {
-      id: "V004",
-      name: "Emily Brown",
-      email: "emily@fashionstore.com",
-      phone: "+1234567893",
-      businessName: "Fashion Store",
-      category: "Clothing",
-      totalSales: 8540,
-      totalOrders: 142,
-      rating: 4.6,
-      status: "suspended",
-      joinedDate: "2024-01-25",
-    },
-    {
-      id: "V005",
-      name: "David Wilson",
-      email: "david@campuscafe.com",
-      phone: "+1234567894",
-      businessName: "Campus Cafe",
-      category: "Food & Beverages",
-      totalSales: 0,
-      totalOrders: 0,
-      rating: 0,
-      status: "pending",
-      joinedDate: "2024-04-01",
-    },
-  ]);
+  useEffect(() => {
+    let isCancelled = false;
 
-  const filteredVendors = vendors.filter(
-    (vendor) =>
-      vendor.businessName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      vendor.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      vendor.email.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+    const timeoutId = setTimeout(async () => {
+      setIsLoading(true);
+      setLoadError(null);
 
-  const handleViewVendor = (vendor: Vendor) => {
+      try {
+        const data = await fetchAdminVendors(searchQuery || undefined);
+        if (!isCancelled) setVendors(data);
+      } catch (error) {
+        if (!isCancelled) setLoadError(getErrorMessage(error));
+      } finally {
+        if (!isCancelled) setIsLoading(false);
+      }
+    }, SEARCH_DEBOUNCE_MS);
+
+    return () => {
+      isCancelled = true;
+      clearTimeout(timeoutId);
+    };
+  }, [searchQuery]);
+
+  const handleViewVendor = (vendor: SafeVendor) => {
     setSelectedVendor(vendor);
     setIsViewDialogOpen(true);
   };
 
-  const handleSuspendVendor = (vendorId: string) => {
-    setVendors(
-      vendors.map((v) =>
-        v.id === vendorId
-          ? { ...v, status: v.status === "suspended" ? "active" : "suspended" }
-          : v
-      )
-    );
-    const vendor = vendors.find((v) => v.id === vendorId);
-    addNotification(
-      `${vendor?.businessName} ${
-        vendor?.status === "suspended" ? "activated" : "suspended"
-      } successfully`,
-      "success"
-    );
-  };
-
-  const handleApproveVendor = (vendorId: string) => {
-    setVendors(
-      vendors.map((v) => (v.id === vendorId ? { ...v, status: "active" } : v))
-    );
-    const vendor = vendors.find((v) => v.id === vendorId);
-    addNotification(`${vendor?.businessName} approved successfully`, "success");
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "active":
-        return "bg-green-100 text-green-700";
-      case "suspended":
-        return "bg-red-100 text-red-700";
-      case "pending":
-        return "bg-yellow-100 text-yellow-700";
-      default:
-        return "bg-gray-100 text-gray-700";
+  const handleApproveVendor = async (vendor: SafeVendor) => {
+    setPendingActionId(vendor._id);
+    try {
+      const updated = await approveVendor(vendor._id);
+      setVendors((current) => current.map((v) => (v._id === updated._id ? updated : v)));
+      addNotification(`${updated.profile.businessName} approved successfully`, "success");
+    } catch (error) {
+      addNotification(getErrorMessage(error), "error");
+    } finally {
+      setPendingActionId(null);
     }
   };
+
+  const handleSuspendVendor = async (vendor: SafeVendor) => {
+    setPendingActionId(vendor._id);
+    try {
+      const updated = await suspendVendor(vendor._id);
+      setVendors((current) => current.map((v) => (v._id === updated._id ? updated : v)));
+      addNotification(`${updated.profile.businessName} suspended successfully`, "success");
+    } catch (error) {
+      addNotification(getErrorMessage(error), "error");
+    } finally {
+      setPendingActionId(null);
+    }
+  };
+
+  const activeCount = vendors.filter((v) => v.isActive).length;
+  const pendingCount = vendors.filter((v) => !v.isActive).length;
 
   return (
     <div className="p-6 space-y-6">
@@ -162,48 +99,34 @@ export default function AdminVendorsPage() {
             Vendor Management
           </h1>
           <p className="text-gray-600 mt-1">
-            Manage and monitor all vendors on the platform
+            Review and approve vendors who have self-registered on the platform
           </p>
         </div>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-gray-900">
-              {vendors.filter((v) => v.status === "active").length}
-            </div>
+            <div className="text-2xl font-bold text-gray-900">{activeCount}</div>
             <p className="text-sm text-gray-600">Active Vendors</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-gray-900">
-              {vendors.filter((v) => v.status === "pending").length}
-            </div>
-            <p className="text-sm text-gray-600">Pending Approval</p>
+            <div className="text-2xl font-bold text-gray-900">{pendingCount}</div>
+            <p className="text-sm text-gray-600">Awaiting Approval</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-gray-900">
-              {vendors.filter((v) => v.status === "suspended").length}
-            </div>
-            <p className="text-sm text-gray-600">Suspended</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-gray-900">
-              {vendors.length}
-            </div>
+            <div className="text-2xl font-bold text-gray-900">{vendors.length}</div>
             <p className="text-sm text-gray-600">Total Vendors</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Search and Filters */}
+      {/* Search and Table */}
       <Card>
         <CardHeader>
           <CardTitle>All Vendors</CardTitle>
@@ -211,29 +134,31 @@ export default function AdminVendorsPage() {
         <CardContent>
           <div className="mb-4">
             <Input
-              placeholder="Search by business name, vendor name, or email..."
+              placeholder="Search by business name or email..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="max-w-md"
             />
           </div>
 
-          {/* Vendors Table */}
+          {loadError && (
+            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              Couldn&apos;t load vendors: {loadError}
+            </div>
+          )}
+
           <div className="border rounded-lg overflow-hidden">
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Vendor
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                     Business
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Category
+                    Categories
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Sales
+                    Revenue
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                     Orders
@@ -250,89 +175,84 @@ export default function AdminVendorsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {filteredVendors.map((vendor) => (
-                  <tr key={vendor.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-4">
-                      <div>
-                        <p className="font-medium text-sm text-gray-900">
-                          {vendor.name}
-                        </p>
-                        <p className="text-sm text-gray-500">{vendor.email}</p>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4">
-                      <p className="text-sm text-gray-900">
-                        {vendor.businessName}
-                      </p>
-                    </td>
-                    <td className="px-4 py-4">
-                      <p className="text-sm text-gray-600">{vendor.category}</p>
-                    </td>
-                    <td className="px-4 py-4">
-                      <p className="text-sm font-medium text-gray-900">
-                        ${vendor.totalSales.toLocaleString()}
-                      </p>
-                    </td>
-                    <td className="px-4 py-4">
-                      <p className="text-sm text-gray-900">
-                        {vendor.totalOrders}
-                      </p>
-                    </td>
-                    <td className="px-4 py-4">
-                      <p className="text-sm text-gray-900">
-                        {vendor.rating > 0 ? `⭐ ${vendor.rating}` : "N/A"}
-                      </p>
-                    </td>
-                    <td className="px-4 py-4">
-                      <span
-                        className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(
-                          vendor.status
-                        )}`}
-                      >
-                        {vendor.status.charAt(0).toUpperCase() +
-                          vendor.status.slice(1)}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleViewVendor(vendor)}
-                        >
-                          View
-                        </Button>
-                        {vendor.status === "pending" && (
-                          <Button
-                            size="sm"
-                            onClick={() => handleApproveVendor(vendor.id)}
-                            className="bg-green-600 hover:bg-green-700"
-                          >
-                            Approve
-                          </Button>
-                        )}
-                        {vendor.status !== "pending" && (
-                          <Button
-                            size="sm"
-                            variant={
-                              vendor.status === "suspended"
-                                ? "default"
-                                : "destructive"
-                            }
-                            onClick={() => handleSuspendVendor(vendor.id)}
-                          >
-                            {vendor.status === "suspended"
-                              ? "Activate"
-                              : "Suspend"}
-                          </Button>
-                        )}
-                      </div>
+                {isLoading && (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">
+                      Loading vendors...
                     </td>
                   </tr>
-                ))}
-                {filteredVendors.length === 0 && (
+                )}
+                {!isLoading &&
+                  vendors.map((vendor) => (
+                    <tr key={vendor._id} className="hover:bg-gray-50">
+                      <td className="px-4 py-4">
+                        <div>
+                          <p className="font-medium text-sm text-gray-900">
+                            {vendor.profile.businessName}
+                          </p>
+                          <p className="text-sm text-gray-500">{vendor.email}</p>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <p className="text-sm text-gray-600">
+                          {vendor.categories.length > 0 ? vendor.categories.join(", ") : "—"}
+                        </p>
+                      </td>
+                      <td className="px-4 py-4">
+                        <p className="text-sm font-medium text-gray-900">
+                          ${vendor.stats.totalRevenue.toLocaleString()}
+                        </p>
+                      </td>
+                      <td className="px-4 py-4">
+                        <p className="text-sm text-gray-900">{vendor.stats.totalOrders}</p>
+                      </td>
+                      <td className="px-4 py-4">
+                        <p className="text-sm text-gray-900">
+                          {vendor.rating.average > 0 ? `⭐ ${vendor.rating.average}` : "N/A"}
+                        </p>
+                      </td>
+                      <td className="px-4 py-4">
+                        <span
+                          className={`px-2 py-1 text-xs font-medium rounded-full ${
+                            vendor.isActive
+                              ? "bg-green-100 text-green-700"
+                              : "bg-yellow-100 text-yellow-700"
+                          }`}
+                        >
+                          {vendor.isActive ? "Active" : "Pending Approval"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="outline" onClick={() => handleViewVendor(vendor)}>
+                            View
+                          </Button>
+                          {vendor.isActive ? (
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              disabled={pendingActionId === vendor._id}
+                              onClick={() => handleSuspendVendor(vendor)}
+                            >
+                              Suspend
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              className="bg-green-600 hover:bg-green-700"
+                              disabled={pendingActionId === vendor._id}
+                              onClick={() => handleApproveVendor(vendor)}
+                            >
+                              Approve
+                            </Button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                {!isLoading && !loadError && vendors.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-500">
+                    <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">
                       No vendors match your search.
                     </td>
                   </tr>
@@ -356,29 +276,30 @@ export default function AdminVendorsPage() {
             <div className="space-y-6">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label className="text-gray-600">Vendor ID</Label>
-                  <p className="font-medium">{selectedVendor.id}</p>
-                </div>
-                <div>
                   <Label className="text-gray-600">Status</Label>
                   <p>
                     <span
-                      className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(
-                        selectedVendor.status
-                      )}`}
+                      className={`px-2 py-1 text-xs font-medium rounded-full ${
+                        selectedVendor.isActive
+                          ? "bg-green-100 text-green-700"
+                          : "bg-yellow-100 text-yellow-700"
+                      }`}
                     >
-                      {selectedVendor.status.charAt(0).toUpperCase() +
-                        selectedVendor.status.slice(1)}
+                      {selectedVendor.isActive ? "Active" : "Pending Approval"}
                     </span>
                   </p>
                 </div>
                 <div>
-                  <Label className="text-gray-600">Vendor Name</Label>
-                  <p className="font-medium">{selectedVendor.name}</p>
+                  <Label className="text-gray-600">Bank Details Verified</Label>
+                  <p className="font-medium">{selectedVendor.isVerified ? "Yes" : "No"}</p>
                 </div>
                 <div>
                   <Label className="text-gray-600">Business Name</Label>
-                  <p className="font-medium">{selectedVendor.businessName}</p>
+                  <p className="font-medium">{selectedVendor.profile.businessName}</p>
+                </div>
+                <div>
+                  <Label className="text-gray-600">Owner Name</Label>
+                  <p className="font-medium">{selectedVendor.profile.ownerName || "—"}</p>
                 </div>
                 <div>
                   <Label className="text-gray-600">Email</Label>
@@ -386,16 +307,20 @@ export default function AdminVendorsPage() {
                 </div>
                 <div>
                   <Label className="text-gray-600">Phone</Label>
-                  <p className="font-medium">{selectedVendor.phone}</p>
+                  <p className="font-medium">{selectedVendor.profile.phoneNumber || "—"}</p>
                 </div>
                 <div>
-                  <Label className="text-gray-600">Category</Label>
-                  <p className="font-medium">{selectedVendor.category}</p>
+                  <Label className="text-gray-600">Categories</Label>
+                  <p className="font-medium">
+                    {selectedVendor.categories.length > 0 ? selectedVendor.categories.join(", ") : "—"}
+                  </p>
                 </div>
                 <div>
                   <Label className="text-gray-600">Joined Date</Label>
                   <p className="font-medium">
-                    {new Date(selectedVendor.joinedDate).toLocaleDateString()}
+                    {selectedVendor.createdAt
+                      ? new Date(selectedVendor.createdAt).toLocaleDateString()
+                      : "—"}
                   </p>
                 </div>
               </div>
@@ -406,15 +331,15 @@ export default function AdminVendorsPage() {
                   <Card>
                     <CardContent className="pt-4">
                       <p className="text-2xl font-bold text-gray-900">
-                        ${selectedVendor.totalSales.toLocaleString()}
+                        ${selectedVendor.stats.totalRevenue.toLocaleString()}
                       </p>
-                      <p className="text-sm text-gray-600">Total Sales</p>
+                      <p className="text-sm text-gray-600">Total Revenue</p>
                     </CardContent>
                   </Card>
                   <Card>
                     <CardContent className="pt-4">
                       <p className="text-2xl font-bold text-gray-900">
-                        {selectedVendor.totalOrders}
+                        {selectedVendor.stats.totalOrders}
                       </p>
                       <p className="text-sm text-gray-600">Total Orders</p>
                     </CardContent>
@@ -422,9 +347,7 @@ export default function AdminVendorsPage() {
                   <Card>
                     <CardContent className="pt-4">
                       <p className="text-2xl font-bold text-gray-900">
-                        {selectedVendor.rating > 0
-                          ? `⭐ ${selectedVendor.rating}`
-                          : "N/A"}
+                        {selectedVendor.rating.average > 0 ? `⭐ ${selectedVendor.rating.average}` : "N/A"}
                       </p>
                       <p className="text-sm text-gray-600">Rating</p>
                     </CardContent>

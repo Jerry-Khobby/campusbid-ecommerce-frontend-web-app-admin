@@ -3,7 +3,7 @@
 import type React from "react";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,67 +16,32 @@ import {
 } from "@/components/ui/card";
 import { useUser } from "@/lib/user-context";
 import { useNotification } from "@/lib/notification-context";
+import { ApiError } from "@/lib/api/client";
 import Link from "next/link";
 
 export default function AdminLoginPage() {
-  const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
-  const { setUser } = useUser();
+  const searchParams = useSearchParams();
+  const { login } = useUser();
   const { addNotification } = useNotification();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
 
-    if (!isLogin && password !== confirmPassword) {
-      addNotification("Passwords do not match", "error");
-      return;
+    try {
+      await login(email, password);
+      addNotification("Logged in successfully", "success");
+      router.push(searchParams.get("redirect") || "/admin/dashboard");
+    } catch (error) {
+      const message = error instanceof ApiError ? error.message : (error as Error).message;
+      addNotification(message || "Login failed", "error");
+    } finally {
+      setIsSubmitting(false);
     }
-
-    const tmpUser = {
-      id: "user-001",
-      name: "Alex Student",
-      email: "alex@university.edu",
-      phone: "+1 (555) 123-4567",
-      avatar: "AS",
-      profileImage: undefined,
-      joinDate: "January 2024",
-      userType: "buyer",
-      stats: {
-        orders: 12,
-        bidsWon: 8,
-        rating: 4.8,
-      },
-      savedItems: [],
-      role: "user",
-    };
-
-    // Mock admin login - in production, this would validate against admin credentials
-    setUser({
-      id: "admin-1",
-      name: "Admin User",
-      email: email,
-      phone: "+1 (555) 123-4567",
-      avatar: "AS",
-      profileImage: undefined,
-      joinDate: "January 2024",
-      userType: "buyer",
-      stats: {
-        orders: 12,
-        bidsWon: 8,
-        rating: 4.8,
-      },
-      savedItems: [],
-      role: "admin",
-    });
-
-    addNotification(
-      `Admin ${isLogin ? "logged in" : "registered"} successfully`,
-      "success"
-    );
-    router.push("/admin/dashboard");
   };
 
   const handleSocialLogin = (provider: string) => {
@@ -93,11 +58,7 @@ export default function AdminLoginPage() {
             </div>
           </div>
           <CardTitle className="text-2xl font-bold">Admin Portal</CardTitle>
-          <CardDescription>
-            {isLogin
-              ? "Sign in to access the admin dashboard"
-              : "Create your admin account"}
-          </CardDescription>
+          <CardDescription>Sign in to access the admin dashboard</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -123,36 +84,22 @@ export default function AdminLoginPage() {
                 required
               />
             </div>
-            {!isLogin && (
-              <div className="space-y-2">
-                <Label htmlFor="confirmPassword">Confirm Password</Label>
-                <Input
-                  id="confirmPassword"
-                  type="password"
-                  placeholder="Confirm your password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                />
-              </div>
-            )}
 
-            {isLogin && (
-              <div className="flex justify-end">
-                <Link
-                  href="/admin/forgot-password"
-                  className="text-sm text-purple-600 hover:text-purple-700 hover:underline"
-                >
-                  Forgot password?
-                </Link>
-              </div>
-            )}
+            <div className="flex justify-end">
+              <Link
+                href="/admin/forgot-password"
+                className="text-sm text-purple-600 hover:text-purple-700 hover:underline"
+              >
+                Forgot password?
+              </Link>
+            </div>
 
             <Button
               type="submit"
+              disabled={isSubmitting}
               className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
             >
-              {isLogin ? "Sign In" : "Create Account"}
+              {isSubmitting ? "Signing in..." : "Sign In"}
             </Button>
           </form>
 
@@ -213,21 +160,6 @@ export default function AdminLoginPage() {
                 <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" />
               </svg>
             </Button>
-          </div>
-
-          <div className="mt-6 text-center text-sm">
-            <span className="text-gray-600">
-              {isLogin
-                ? "Don't have an admin account?"
-                : "Already have an account?"}
-            </span>{" "}
-            <button
-              type="button"
-              onClick={() => setIsLogin(!isLogin)}
-              className="text-purple-600 hover:text-purple-700 font-medium hover:underline"
-            >
-              {isLogin ? "Sign up" : "Sign in"}
-            </button>
           </div>
         </CardContent>
       </Card>

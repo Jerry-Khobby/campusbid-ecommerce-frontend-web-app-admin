@@ -19,11 +19,11 @@ const navItems = [
 export function AdminSidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, setUser } = useUser();
+  const { user, logout } = useUser();
   const { addNotification } = useNotification();
 
-  const handleSignOut = () => {
-    setUser(null);
+  const handleSignOut = async () => {
+    await logout();
     addNotification("Signed out successfully", "success");
     router.push("/admin/login");
   };
