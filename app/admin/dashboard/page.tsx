@@ -58,10 +58,13 @@ function formatMonthLabel(monthString: string): string {
   return new Date(Number(year), Number(month) - 1).toLocaleDateString(undefined, { month: "short" });
 }
 
-function getPartyName(party: { profile?: { firstName?: string; lastName?: string; businessName?: string } } | null): string {
+function getPartyName(
+  party: { email?: string; profile?: { firstName?: string; lastName?: string; businessName?: string } } | null,
+): string {
   if (!party) return "Unknown";
   if (party.profile?.businessName) return party.profile.businessName;
-  return [party.profile?.firstName, party.profile?.lastName].filter(Boolean).join(" ") || "Unknown";
+  const name = [party.profile?.firstName, party.profile?.lastName].filter(Boolean).join(" ");
+  return name || party.email || "Unknown";
 }
 
 export default function AdminDashboardPage() {
