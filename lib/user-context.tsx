@@ -3,17 +3,16 @@
 import type React from "react";
 import { createContext, useContext, useEffect, useState } from "react";
 import { loginUser, logoutUser } from "./api/auth";
-import { clearTokens } from "./api/token-storage";
+import { clearTokens, getAccessToken } from "./api/token-storage";
+import { fetchProfile } from "./api/profile";
 import type { SafeUser } from "./api/types";
 
 export interface User {
   id: string;
   email: string;
   role: SafeUser["role"];
-  // The backend has no display name for an admin account (it's a promoted
-  // student, see docs/users.md) — kept optional so existing call sites that
-  // fall back to a default (e.g. "Admin User") keep working.
   name?: string;
+  profileImage?: string;
 }
 
 interface UserContextType {
@@ -22,15 +21,17 @@ interface UserContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  refetchUser: () => Promise<void>;
+  // Lets Settings sync the sidebar's name/photo right after a save, without
+  // waiting on a refetch.
+  setDisplayName: (name: string) => void;
+  setProfileImage: (url: string) => void;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
 const STORAGE_KEY = "campusbid-admin-user";
 
-// The backend has no admin-accessible "who am I" endpoint (GET /users/profile
-// is @Roles("student")-only), so the logged-in user is captured from the
-// login response and persisted here, instead of re-fetched on each load.
 function readStoredUser(): User | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -51,16 +52,37 @@ function writeStoredUser(user: User | null): void {
 }
 
 function toUser(safeUser: SafeUser): User {
-  return { id: safeUser._id, email: safeUser.email, role: safeUser.role };
+  const name = [safeUser.profile.firstName, safeUser.profile.lastName].filter(Boolean).join(" ");
+  return {
+    id: safeUser._id,
+    email: safeUser.email,
+    role: safeUser.role,
+    name: name || undefined,
+    profileImage: safeUser.profile.profileImage,
+  };
 }
 
 export function UserProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  const refetchUser = async () => {
+    if (!getAccessToken()) return;
+    try {
+      const safeUser = await fetchProfile();
+      const nextUser = toUser(safeUser);
+      setUser(nextUser);
+      writeStoredUser(nextUser);
+    } catch {
+      // Keep whatever was already loaded from storage/login rather than
+      // logging the admin out over a transient profile-fetch failure.
+    }
+  };
+
   useEffect(() => {
     setUser(readStoredUser());
     setIsLoading(false);
+    refetchUser();
   }, []);
 
   const login = async (email: string, password: string) => {
@@ -85,8 +107,28 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const setDisplayName = (name: string) => {
+    setUser((current) => {
+      if (!current) return current;
+      const next = { ...current, name };
+      writeStoredUser(next);
+      return next;
+    });
+  };
+
+  const setProfileImage = (url: string) => {
+    setUser((current) => {
+      if (!current) return current;
+      const next = { ...current, profileImage: url };
+      writeStoredUser(next);
+      return next;
+    });
+  };
+
   return (
-    <UserContext.Provider value={{ user, isLoggedIn: user !== null, isLoading, login, logout }}>
+    <UserContext.Provider
+      value={{ user, isLoggedIn: user !== null, isLoading, login, logout, refetchUser, setDisplayName, setProfileImage }}
+    >
       {children}
     </UserContext.Provider>
   );
