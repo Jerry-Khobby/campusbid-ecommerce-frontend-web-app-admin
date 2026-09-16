@@ -1,8 +1,63 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { useNotification } from "@/lib/notification-context"
+import { ApiError } from "@/lib/api/client"
+import { fetchAdminAnalytics, fetchAdminDashboard } from "@/lib/api/admin"
+import type { AdminAnalytics, AdminDashboard } from "@/lib/api/types"
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof ApiError ? error.message : "Something went wrong. Please try again."
+}
 
 export default function AdminAnalyticsPage() {
+  const { addNotification } = useNotification()
+  const [dashboard, setDashboard] = useState<AdminDashboard | null>(null)
+  const [analytics, setAnalytics] = useState<AdminAnalytics | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    let isCancelled = false
+
+    Promise.all([fetchAdminDashboard(), fetchAdminAnalytics()])
+      .then(([dashboardData, analyticsData]) => {
+        if (!isCancelled) {
+          setDashboard(dashboardData)
+          setAnalytics(analyticsData)
+        }
+      })
+      .catch((error) => {
+        if (!isCancelled) addNotification(getErrorMessage(error), "error")
+      })
+      .finally(() => {
+        if (!isCancelled) setIsLoading(false)
+      })
+
+    return () => {
+      isCancelled = true
+    }
+  }, [addNotification])
+
+  if (isLoading) {
+    return (
+      <div className="p-6">
+        <p className="text-sm text-gray-500">Loading analytics...</p>
+      </div>
+    )
+  }
+
+  if (!dashboard || !analytics) {
+    return (
+      <div className="p-6">
+        <p className="text-sm text-red-600">Couldn&apos;t load analytics. Try refreshing the page.</p>
+      </div>
+    )
+  }
+
+  const averageOrderValue = dashboard.totalOrders > 0 ? dashboard.totalRevenue / dashboard.totalOrders : 0
+  const categoryTotal = analytics.revenueByCategory.reduce((sum, c) => sum + c.revenue, 0)
+
   return (
     <div className="p-6 space-y-6">
       <div>
@@ -13,30 +68,26 @@ export default function AdminAnalyticsPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-gray-900">$125,450</div>
+            <div className="text-2xl font-bold text-gray-900">${dashboard.totalRevenue.toLocaleString()}</div>
             <p className="text-sm text-gray-600">Total Revenue</p>
-            <p className="text-xs text-green-600 mt-1">+12.5% from last month</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-gray-900">1,847</div>
+            <div className="text-2xl font-bold text-gray-900">{dashboard.totalOrders.toLocaleString()}</div>
             <p className="text-sm text-gray-600">Total Orders</p>
-            <p className="text-xs text-blue-600 mt-1">+8.3% from last month</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-gray-900">3,421</div>
-            <p className="text-sm text-gray-600">Active Users</p>
-            <p className="text-xs text-purple-600 mt-1">+15.2% from last month</p>
+            <div className="text-2xl font-bold text-gray-900">{dashboard.activeCustomers.toLocaleString()}</div>
+            <p className="text-sm text-gray-600">Active Customers</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-gray-900">$67.85</div>
+            <div className="text-2xl font-bold text-gray-900">${averageOrderValue.toFixed(2)}</div>
             <p className="text-sm text-gray-600">Avg Order Value</p>
-            <p className="text-xs text-orange-600 mt-1">+5.1% from last month</p>
           </CardContent>
         </Card>
       </div>
@@ -47,27 +98,29 @@ export default function AdminAnalyticsPage() {
             <CardTitle>Revenue by Category</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {[
-                { category: "Electronics", revenue: 45200, percentage: 36 },
-                { category: "Books", revenue: 32100, percentage: 26 },
-                { category: "Clothing", revenue: 28500, percentage: 23 },
-                { category: "Food", revenue: 19650, percentage: 15 },
-              ].map((item) => (
-                <div key={item.category}>
-                  <div className="flex justify-between mb-1">
-                    <span className="text-sm font-medium">{item.category}</span>
-                    <span className="text-sm text-gray-600">${item.revenue.toLocaleString()}</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className="bg-gradient-to-r from-purple-600 to-blue-600 h-2 rounded-full"
-                      style={{ width: `${item.percentage}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
+            {analytics.revenueByCategory.length === 0 ? (
+              <p className="text-sm text-gray-500 py-8 text-center">No sales yet.</p>
+            ) : (
+              <div className="space-y-4">
+                {analytics.revenueByCategory.map((item) => {
+                  const percentage = categoryTotal > 0 ? Math.round((item.revenue / categoryTotal) * 100) : 0
+                  return (
+                    <div key={item.category}>
+                      <div className="flex justify-between mb-1">
+                        <span className="text-sm font-medium">{item.category}</span>
+                        <span className="text-sm text-gray-600">${item.revenue.toLocaleString()}</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div
+                          className="bg-gradient-to-r from-purple-600 to-blue-600 h-2 rounded-full"
+                          style={{ width: `${percentage}%` }}
+                        />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -76,25 +129,24 @@ export default function AdminAnalyticsPage() {
             <CardTitle>Top Performing Vendors</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {[
-                { name: "Campus Store", revenue: 15420, orders: 234 },
-                { name: "Tech Hub", revenue: 12350, orders: 189 },
-                { name: "Book Corner", revenue: 9870, orders: 156 },
-                { name: "Fashion Store", revenue: 8540, orders: 142 },
-              ].map((vendor, index) => (
-                <div key={vendor.name} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                  <div className="w-8 h-8 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
-                    {index + 1}
+            {analytics.topVendors.length === 0 ? (
+              <p className="text-sm text-gray-500 py-8 text-center">No vendor sales yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {analytics.topVendors.map((vendor, index) => (
+                  <div key={vendor.vendorId} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                    <div className="w-8 h-8 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                      {index + 1}
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium text-sm">{vendor.name}</p>
+                      <p className="text-xs text-gray-600">{vendor.orders} orders</p>
+                    </div>
+                    <p className="font-bold text-gray-900">${vendor.revenue.toLocaleString()}</p>
                   </div>
-                  <div className="flex-1">
-                    <p className="font-medium text-sm">{vendor.name}</p>
-                    <p className="text-xs text-gray-600">{vendor.orders} orders</p>
-                  </div>
-                  <p className="font-bold text-gray-900">${vendor.revenue.toLocaleString()}</p>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

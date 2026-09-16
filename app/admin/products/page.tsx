@@ -1,86 +1,80 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { ApiError } from "@/lib/api/client"
+import { fetchAdminProducts, fetchVendorNameMap } from "@/lib/api/products"
+import type { AdminProduct } from "@/lib/api/types"
 
-interface Product {
-  id: string
-  name: string
-  vendor: string
-  category: string
-  price: number
-  stock: number
-  sales: number
-  status: "active" | "inactive" | "out-of-stock"
+function getErrorMessage(error: unknown): string {
+  return error instanceof ApiError ? error.message : "Something went wrong. Please try again."
+}
+
+type ProductStatus = "active" | "inactive" | "out-of-stock"
+
+function getProductStatus(product: AdminProduct): ProductStatus {
+  if (product.stock === 0) return "out-of-stock"
+  return product.isAvailable ? "active" : "inactive"
+}
+
+function getStatusColor(status: ProductStatus): string {
+  switch (status) {
+    case "active":
+      return "bg-green-100 text-green-700"
+    case "inactive":
+      return "bg-gray-100 text-gray-700"
+    case "out-of-stock":
+      return "bg-red-100 text-red-700"
+  }
+}
+
+function formatStatus(status: ProductStatus): string {
+  return status
+    .split("-")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ")
 }
 
 export default function AdminProductsPage() {
   const [searchQuery, setSearchQuery] = useState("")
+  const [products, setProducts] = useState<AdminProduct[]>([])
+  const [vendorNames, setVendorNames] = useState<Map<string, string>>(new Map())
+  const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
-  // Mock product data
-  const products: Product[] = [
-    {
-      id: "P001",
-      name: "Laptop Stand",
-      vendor: "Campus Store",
-      category: "Electronics",
-      price: 29.99,
-      stock: 45,
-      sales: 234,
-      status: "active",
-    },
-    {
-      id: "P002",
-      name: "Wireless Mouse",
-      vendor: "Tech Hub",
-      category: "Electronics",
-      price: 24.99,
-      stock: 0,
-      sales: 189,
-      status: "out-of-stock",
-    },
-    {
-      id: "P003",
-      name: "Physics Textbook",
-      vendor: "Book Corner",
-      category: "Books",
-      price: 89.99,
-      stock: 23,
-      sales: 156,
-      status: "active",
-    },
-    {
-      id: "P004",
-      name: "T-Shirt",
-      vendor: "Fashion Store",
-      category: "Clothing",
-      price: 19.99,
-      stock: 120,
-      sales: 342,
-      status: "active",
-    },
-  ]
+  useEffect(() => {
+    let isCancelled = false
 
-  const filteredProducts = products.filter(
-    (product) =>
-      product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      product.vendor.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      product.category.toLowerCase().includes(searchQuery.toLowerCase()),
-  )
+    const timeoutId = setTimeout(async () => {
+      setIsLoading(true)
+      setLoadError(null)
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "active":
-        return "bg-green-100 text-green-700"
-      case "inactive":
-        return "bg-gray-100 text-gray-700"
-      case "out-of-stock":
-        return "bg-red-100 text-red-700"
-      default:
-        return "bg-gray-100 text-gray-700"
+      try {
+        const [productData, vendorMap] = await Promise.all([
+          fetchAdminProducts(searchQuery || undefined),
+          fetchVendorNameMap(),
+        ])
+        if (!isCancelled) {
+          setProducts(productData)
+          setVendorNames(vendorMap)
+        }
+      } catch (error) {
+        if (!isCancelled) setLoadError(getErrorMessage(error))
+      } finally {
+        if (!isCancelled) setIsLoading(false)
+      }
+    }, 300)
+
+    return () => {
+      isCancelled = true
+      clearTimeout(timeoutId)
     }
-  }
+  }, [searchQuery])
+
+  const totalSales = products.reduce((sum, p) => sum + p.soldCount, 0)
+  const activeCount = products.filter((p) => getProductStatus(p) === "active").length
+  const outOfStockCount = products.filter((p) => getProductStatus(p) === "out-of-stock").length
 
   return (
     <div className="p-6 space-y-6">
@@ -98,23 +92,19 @@ export default function AdminProductsPage() {
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-gray-900">
-              {products.filter((p) => p.status === "active").length}
-            </div>
+            <div className="text-2xl font-bold text-gray-900">{activeCount}</div>
             <p className="text-sm text-gray-600">Active</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-gray-900">
-              {products.filter((p) => p.status === "out-of-stock").length}
-            </div>
+            <div className="text-2xl font-bold text-gray-900">{outOfStockCount}</div>
             <p className="text-sm text-gray-600">Out of Stock</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-gray-900">{products.reduce((sum, p) => sum + p.sales, 0)}</div>
+            <div className="text-2xl font-bold text-gray-900">{totalSales}</div>
             <p className="text-sm text-gray-600">Total Sales</p>
           </CardContent>
         </Card>
@@ -127,12 +117,18 @@ export default function AdminProductsPage() {
         <CardContent>
           <div className="mb-4">
             <Input
-              placeholder="Search by product name, vendor, or category..."
+              placeholder="Search by product name..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="max-w-md"
             />
           </div>
+
+          {loadError && (
+            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              Couldn&apos;t load products: {loadError}
+            </div>
+          )}
 
           <div className="border rounded-lg overflow-hidden">
             <table className="w-full">
@@ -148,37 +144,45 @@ export default function AdminProductsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {filteredProducts.map((product) => (
-                  <tr key={product.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-4">
-                      <p className="font-medium text-sm text-gray-900">{product.name}</p>
-                    </td>
-                    <td className="px-4 py-4">
-                      <p className="text-sm text-gray-900">{product.vendor}</p>
-                    </td>
-                    <td className="px-4 py-4">
-                      <p className="text-sm text-gray-600">{product.category}</p>
-                    </td>
-                    <td className="px-4 py-4">
-                      <p className="text-sm font-medium text-gray-900">${product.price}</p>
-                    </td>
-                    <td className="px-4 py-4">
-                      <p className="text-sm text-gray-900">{product.stock}</p>
-                    </td>
-                    <td className="px-4 py-4">
-                      <p className="text-sm text-gray-900">{product.sales}</p>
-                    </td>
-                    <td className="px-4 py-4">
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(product.status)}`}>
-                        {product.status
-                          .split("-")
-                          .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-                          .join(" ")}
-                      </span>
+                {isLoading && (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">
+                      Loading products...
                     </td>
                   </tr>
-                ))}
-                {filteredProducts.length === 0 && (
+                )}
+                {!isLoading &&
+                  products.map((product) => {
+                    const status = getProductStatus(product)
+                    return (
+                      <tr key={product._id} className="hover:bg-gray-50">
+                        <td className="px-4 py-4">
+                          <p className="font-medium text-sm text-gray-900">{product.name}</p>
+                        </td>
+                        <td className="px-4 py-4">
+                          <p className="text-sm text-gray-900">{vendorNames.get(product.vendorId) || "Unknown"}</p>
+                        </td>
+                        <td className="px-4 py-4">
+                          <p className="text-sm text-gray-600">{product.category}</p>
+                        </td>
+                        <td className="px-4 py-4">
+                          <p className="text-sm font-medium text-gray-900">${product.price}</p>
+                        </td>
+                        <td className="px-4 py-4">
+                          <p className="text-sm text-gray-900">{product.stock}</p>
+                        </td>
+                        <td className="px-4 py-4">
+                          <p className="text-sm text-gray-900">{product.soldCount}</p>
+                        </td>
+                        <td className="px-4 py-4">
+                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(status)}`}>
+                            {formatStatus(status)}
+                          </span>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                {!isLoading && !loadError && products.length === 0 && (
                   <tr>
                     <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">
                       No products match your search.

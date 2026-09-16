@@ -1,154 +1,120 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { ApiError } from "@/lib/api/client"
+import { fetchAdminOrders } from "@/lib/api/orders"
+import type { AdminOrder } from "@/lib/api/types"
 
-interface Order {
-  id: string
-  orderNumber: string
-  customer: string
-  customerEmail: string
-  vendor: string
-  vendorEmail: string
-  items: string[]
-  totalAmount: number
-  status: "pending" | "processing" | "ready" | "completed" | "cancelled"
-  paymentStatus: "paid" | "pending" | "refunded"
-  orderDate: string
-  deliveryDate?: string
+const SEARCH_DEBOUNCE_MS = 300
+
+const STATUS_OPTIONS = [
+  "pending",
+  "accepted",
+  "preparing",
+  "ready",
+  "out_for_delivery",
+  "delivered",
+  "completed",
+  "cancelled",
+  "refunded",
+]
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof ApiError ? error.message : "Something went wrong. Please try again."
+}
+
+function formatStatus(status: string): string {
+  return status
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ")
+}
+
+function getStatusColor(status: string): string {
+  switch (status) {
+    case "completed":
+    case "delivered":
+      return "bg-green-100 text-green-700"
+    case "preparing":
+    case "out_for_delivery":
+      return "bg-blue-100 text-blue-700"
+    case "ready":
+    case "accepted":
+      return "bg-purple-100 text-purple-700"
+    case "pending":
+      return "bg-yellow-100 text-yellow-700"
+    case "cancelled":
+    case "refunded":
+      return "bg-red-100 text-red-700"
+    default:
+      return "bg-gray-100 text-gray-700"
+  }
+}
+
+function getPartyName(party: AdminOrder["customerId"] | AdminOrder["vendorId"]): string {
+  if (!party) return "Unknown"
+  const profile = party.profile
+  if (profile?.businessName) return profile.businessName
+  const name = [profile?.firstName, profile?.lastName].filter(Boolean).join(" ")
+  return name || party.email
 }
 
 export default function AdminOrdersPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
+  const [orders, setOrders] = useState<AdminOrder[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [selectedOrder, setSelectedOrder] = useState<AdminOrder | null>(null)
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
 
-  // Mock order data
-  const [orders] = useState<Order[]>([
-    {
-      id: "1",
-      orderNumber: "ORD-1234",
-      customer: "Alice Johnson",
-      customerEmail: "alice@university.edu",
-      vendor: "Campus Store",
-      vendorEmail: "john@campusstore.com",
-      items: ["Laptop Stand", "USB Cable"],
-      totalAmount: 45.99,
-      status: "completed",
-      paymentStatus: "paid",
-      orderDate: "2024-04-15T10:30:00",
-      deliveryDate: "2024-04-15T14:20:00",
-    },
-    {
-      id: "2",
-      orderNumber: "ORD-1235",
-      customer: "Bob Williams",
-      customerEmail: "bob@university.edu",
-      vendor: "Tech Hub",
-      vendorEmail: "sarah@techhub.com",
-      items: ["Wireless Mouse", "Keyboard"],
-      totalAmount: 129.99,
-      status: "processing",
-      paymentStatus: "paid",
-      orderDate: "2024-04-15T11:00:00",
-    },
-    {
-      id: "3",
-      orderNumber: "ORD-1236",
-      customer: "Carol Martinez",
-      customerEmail: "carol@university.edu",
-      vendor: "Book Corner",
-      vendorEmail: "mike@bookcorner.com",
-      items: ["Textbook: Physics 101"],
-      totalAmount: 34.5,
-      status: "pending",
-      paymentStatus: "paid",
-      orderDate: "2024-04-15T11:30:00",
-    },
-    {
-      id: "4",
-      orderNumber: "ORD-1237",
-      customer: "David Lee",
-      customerEmail: "david@university.edu",
-      vendor: "Fashion Store",
-      vendorEmail: "emily@fashionstore.com",
-      items: ["T-Shirt", "Jeans"],
-      totalAmount: 89.99,
-      status: "ready",
-      paymentStatus: "paid",
-      orderDate: "2024-04-15T09:15:00",
-    },
-    {
-      id: "5",
-      orderNumber: "ORD-1238",
-      customer: "Emma Davis",
-      customerEmail: "emma@university.edu",
-      vendor: "Campus Cafe",
-      vendorEmail: "david@campuscafe.com",
-      items: ["Coffee", "Sandwich"],
-      totalAmount: 15.75,
-      status: "cancelled",
-      paymentStatus: "refunded",
-      orderDate: "2024-04-14T12:00:00",
-    },
-  ])
+  useEffect(() => {
+    let isCancelled = false
+
+    const timeoutId = setTimeout(async () => {
+      setIsLoading(true)
+      setLoadError(null)
+
+      try {
+        const data = await fetchAdminOrders(statusFilter === "all" ? undefined : statusFilter)
+        if (!isCancelled) setOrders(data)
+      } catch (error) {
+        if (!isCancelled) setLoadError(getErrorMessage(error))
+      } finally {
+        if (!isCancelled) setIsLoading(false)
+      }
+    }, SEARCH_DEBOUNCE_MS)
+
+    return () => {
+      isCancelled = true
+      clearTimeout(timeoutId)
+    }
+  }, [statusFilter])
 
   const filteredOrders = orders.filter((order) => {
-    const matchesSearch =
-      order.orderNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      order.customer.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      order.vendor.toLowerCase().includes(searchQuery.toLowerCase())
-
-    const matchesStatus = statusFilter === "all" || order.status === statusFilter
-
-    return matchesSearch && matchesStatus
+    const query = searchQuery.toLowerCase()
+    return (
+      order.orderNumber.toLowerCase().includes(query) ||
+      getPartyName(order.customerId).toLowerCase().includes(query) ||
+      getPartyName(order.vendorId).toLowerCase().includes(query)
+    )
   })
 
-  const handleViewOrder = (order: Order) => {
+  const handleViewOrder = (order: AdminOrder) => {
     setSelectedOrder(order)
     setIsViewDialogOpen(true)
-  }
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "completed":
-        return "bg-green-100 text-green-700"
-      case "processing":
-        return "bg-blue-100 text-blue-700"
-      case "ready":
-        return "bg-purple-100 text-purple-700"
-      case "pending":
-        return "bg-yellow-100 text-yellow-700"
-      case "cancelled":
-        return "bg-red-100 text-red-700"
-      default:
-        return "bg-gray-100 text-gray-700"
-    }
-  }
-
-  const getPaymentStatusColor = (status: string) => {
-    switch (status) {
-      case "paid":
-        return "bg-green-100 text-green-700"
-      case "pending":
-        return "bg-yellow-100 text-yellow-700"
-      case "refunded":
-        return "bg-red-100 text-red-700"
-      default:
-        return "bg-gray-100 text-gray-700"
-    }
   }
 
   const totalOrders = orders.length
   const completedOrders = orders.filter((o) => o.status === "completed").length
   const pendingOrders = orders.filter((o) => o.status === "pending").length
-  const totalRevenue = orders.filter((o) => o.paymentStatus === "paid").reduce((sum, o) => sum + o.totalAmount, 0)
+  const totalRevenue = orders.reduce((sum, o) => sum + (o.pricing?.total ?? 0), 0)
 
   return (
     <div className="p-6 space-y-6">
@@ -207,14 +173,20 @@ export default function AdminOrdersPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="processing">Processing</SelectItem>
-                <SelectItem value="ready">Ready</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
-                <SelectItem value="cancelled">Cancelled</SelectItem>
+                {STATUS_OPTIONS.map((status) => (
+                  <SelectItem key={status} value={status}>
+                    {formatStatus(status)}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
+
+          {loadError && (
+            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              Couldn&apos;t load orders: {loadError}
+            </div>
+          )}
 
           {/* Orders Table */}
           <div className="border rounded-lg overflow-hidden">
@@ -226,58 +198,60 @@ export default function AdminOrdersPage() {
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Vendor</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Payment</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {filteredOrders.map((order) => (
-                  <tr key={order.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-4">
-                      <p className="font-medium text-sm text-gray-900">{order.orderNumber}</p>
-                    </td>
-                    <td className="px-4 py-4">
-                      <div>
-                        <p className="text-sm text-gray-900">{order.customer}</p>
-                        <p className="text-xs text-gray-500">{order.customerEmail}</p>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4">
-                      <div>
-                        <p className="text-sm text-gray-900">{order.vendor}</p>
-                        <p className="text-xs text-gray-500">{order.vendorEmail}</p>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4">
-                      <p className="text-sm font-medium text-gray-900">${order.totalAmount.toFixed(2)}</p>
-                    </td>
-                    <td className="px-4 py-4">
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(order.status)}`}>
-                        {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4">
-                      <span
-                        className={`px-2 py-1 text-xs font-medium rounded-full ${getPaymentStatusColor(order.paymentStatus)}`}
-                      >
-                        {order.paymentStatus.charAt(0).toUpperCase() + order.paymentStatus.slice(1)}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4">
-                      <p className="text-sm text-gray-600">{new Date(order.orderDate).toLocaleDateString()}</p>
-                      <p className="text-xs text-gray-500">{new Date(order.orderDate).toLocaleTimeString()}</p>
-                    </td>
-                    <td className="px-4 py-4">
-                      <Button size="sm" variant="outline" onClick={() => handleViewOrder(order)}>
-                        View Details
-                      </Button>
+                {isLoading && (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">
+                      Loading orders...
                     </td>
                   </tr>
-                ))}
-                {filteredOrders.length === 0 && (
+                )}
+                {!isLoading &&
+                  filteredOrders.map((order) => (
+                    <tr key={order._id} className="hover:bg-gray-50">
+                      <td className="px-4 py-4">
+                        <p className="font-medium text-sm text-gray-900">{order.orderNumber}</p>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div>
+                          <p className="text-sm text-gray-900">{getPartyName(order.customerId)}</p>
+                          <p className="text-xs text-gray-500">{order.customerId?.email}</p>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div>
+                          <p className="text-sm text-gray-900">{getPartyName(order.vendorId)}</p>
+                          <p className="text-xs text-gray-500">{order.vendorId?.email}</p>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <p className="text-sm font-medium text-gray-900">
+                          ${(order.pricing?.total ?? 0).toFixed(2)}
+                        </p>
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(order.status)}`}>
+                          {formatStatus(order.status)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4">
+                        <p className="text-sm text-gray-600">{new Date(order.createdAt).toLocaleDateString()}</p>
+                        <p className="text-xs text-gray-500">{new Date(order.createdAt).toLocaleTimeString()}</p>
+                      </td>
+                      <td className="px-4 py-4">
+                        <Button size="sm" variant="outline" onClick={() => handleViewOrder(order)}>
+                          View Details
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                {!isLoading && !loadError && filteredOrders.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-500">
+                    <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">
                       No orders match your search.
                     </td>
                   </tr>
@@ -304,17 +278,17 @@ export default function AdminOrdersPage() {
                 </div>
                 <div>
                   <Label className="text-gray-600">Order Date</Label>
-                  <p className="font-medium">{new Date(selectedOrder.orderDate).toLocaleString()}</p>
+                  <p className="font-medium">{new Date(selectedOrder.createdAt).toLocaleString()}</p>
                 </div>
                 <div>
                   <Label className="text-gray-600">Customer</Label>
-                  <p className="font-medium">{selectedOrder.customer}</p>
-                  <p className="text-sm text-gray-500">{selectedOrder.customerEmail}</p>
+                  <p className="font-medium">{getPartyName(selectedOrder.customerId)}</p>
+                  <p className="text-sm text-gray-500">{selectedOrder.customerId?.email}</p>
                 </div>
                 <div>
                   <Label className="text-gray-600">Vendor</Label>
-                  <p className="font-medium">{selectedOrder.vendor}</p>
-                  <p className="text-sm text-gray-500">{selectedOrder.vendorEmail}</p>
+                  <p className="font-medium">{getPartyName(selectedOrder.vendorId)}</p>
+                  <p className="text-sm text-gray-500">{selectedOrder.vendorId?.email}</p>
                 </div>
                 <div>
                   <Label className="text-gray-600">Order Status</Label>
@@ -322,34 +296,21 @@ export default function AdminOrdersPage() {
                     <span
                       className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(selectedOrder.status)}`}
                     >
-                      {selectedOrder.status.charAt(0).toUpperCase() + selectedOrder.status.slice(1)}
+                      {formatStatus(selectedOrder.status)}
                     </span>
                   </p>
                 </div>
-                <div>
-                  <Label className="text-gray-600">Payment Status</Label>
-                  <p>
-                    <span
-                      className={`px-2 py-1 text-xs font-medium rounded-full ${getPaymentStatusColor(selectedOrder.paymentStatus)}`}
-                    >
-                      {selectedOrder.paymentStatus.charAt(0).toUpperCase() + selectedOrder.paymentStatus.slice(1)}
-                    </span>
-                  </p>
-                </div>
-                {selectedOrder.deliveryDate && (
-                  <div>
-                    <Label className="text-gray-600">Delivery Date</Label>
-                    <p className="font-medium">{new Date(selectedOrder.deliveryDate).toLocaleString()}</p>
-                  </div>
-                )}
               </div>
 
               <div className="border-t pt-4">
                 <h3 className="font-semibold mb-3">Order Items</h3>
                 <div className="space-y-2">
                   {selectedOrder.items.map((item, index) => (
-                    <div key={index} className="p-3 bg-gray-50 rounded-lg">
-                      <p className="text-sm font-medium">{item}</p>
+                    <div key={index} className="p-3 bg-gray-50 rounded-lg flex justify-between">
+                      <p className="text-sm font-medium">
+                        {typeof item.productId === "string" ? item.productId : item.productId.name} × {item.quantity}
+                      </p>
+                      <p className="text-sm text-gray-600">${(item.price * item.quantity).toFixed(2)}</p>
                     </div>
                   ))}
                 </div>
@@ -358,7 +319,9 @@ export default function AdminOrdersPage() {
               <div className="border-t pt-4">
                 <div className="flex justify-between items-center">
                   <span className="font-semibold">Total Amount</span>
-                  <span className="text-2xl font-bold text-gray-900">${selectedOrder.totalAmount.toFixed(2)}</span>
+                  <span className="text-2xl font-bold text-gray-900">
+                    ${(selectedOrder.pricing?.total ?? 0).toFixed(2)}
+                  </span>
                 </div>
               </div>
             </div>
