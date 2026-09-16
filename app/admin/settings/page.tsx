@@ -2,332 +2,234 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { useNotification } from "@/lib/notification-context"
 import { useUser } from "@/lib/user-context"
+import { ApiError } from "@/lib/api/client"
+import { changePassword, fetchProfile, updateProfile, uploadProfileImage } from "@/lib/api/profile"
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof ApiError ? error.message : "Something went wrong. Please try again."
+}
 
 export default function AdminSettingsPage() {
   const { addNotification } = useNotification()
-  const { user } = useUser()
+  const { user, setDisplayName, setProfileImage } = useUser()
 
-  // Platform Settings
-  const [platformName, setPlatformName] = useState("CampusBid")
-  const [platformEmail, setPlatformEmail] = useState("admin@campusbid.com")
-  const [supportEmail, setSupportEmail] = useState("support@campusbid.com")
-  const [platformDescription, setPlatformDescription] = useState(
-    "The premier marketplace for university students and vendors",
-  )
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSavingProfile, setIsSavingProfile] = useState(false)
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false)
+  const [isChangingPassword, setIsChangingPassword] = useState(false)
 
-  // Commission Settings
-  const [vendorCommission, setVendorCommission] = useState("5")
-  const [transactionFee, setTransactionFee] = useState("2.5")
+  const [firstName, setFirstName] = useState("")
+  const [lastName, setLastName] = useState("")
+  const [phoneNumber, setPhoneNumber] = useState("")
 
-  // Admin Profile
-  const [adminName, setAdminName] = useState(user?.name || "Admin User")
-  const [adminEmail, setAdminEmail] = useState(user?.email || "admin@campusbid.com")
-  const [adminPhone, setAdminPhone] = useState("+1234567890")
+  const [currentPassword, setCurrentPassword] = useState("")
+  const [newPassword, setNewPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
 
-  // Notification Settings
-  const [emailNotifications, setEmailNotifications] = useState(true)
-  const [orderNotifications, setOrderNotifications] = useState(true)
-  const [vendorNotifications, setVendorNotifications] = useState(true)
+  useEffect(() => {
+    let isCancelled = false
 
-  const handleSavePlatformSettings = (e: React.FormEvent) => {
+    fetchProfile()
+      .then((profile) => {
+        if (isCancelled) return
+        setFirstName(profile.profile.firstName ?? "")
+        setLastName(profile.profile.lastName ?? "")
+        setPhoneNumber(profile.profile.phoneNumber ?? "")
+      })
+      .catch((error) => addNotification(getErrorMessage(error), "error"))
+      .finally(() => {
+        if (!isCancelled) setIsLoading(false)
+      })
+
+    return () => {
+      isCancelled = true
+    }
+  }, [addNotification])
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault()
-    addNotification("Platform settings updated successfully", "success")
+    setIsSavingProfile(true)
+    try {
+      await updateProfile({ firstName, lastName, phoneNumber })
+      setDisplayName([firstName, lastName].filter(Boolean).join(" "))
+      addNotification("Profile updated successfully", "success")
+    } catch (error) {
+      addNotification(getErrorMessage(error), "error")
+    } finally {
+      setIsSavingProfile(false)
+    }
   }
 
-  const handleSaveCommissionSettings = (e: React.FormEvent) => {
-    e.preventDefault()
-    addNotification("Commission settings updated successfully", "success")
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ""
+    if (!file) return
+
+    setIsUploadingPhoto(true)
+    try {
+      const profile = await uploadProfileImage(file)
+      if (profile.profile.profileImage) setProfileImage(profile.profile.profileImage)
+      addNotification("Profile photo updated", "success")
+    } catch (error) {
+      addNotification(getErrorMessage(error), "error")
+    } finally {
+      setIsUploadingPhoto(false)
+    }
   }
 
-  const handleSaveProfileSettings = (e: React.FormEvent) => {
+  const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault()
-    addNotification("Profile updated successfully", "success")
+    if (newPassword !== confirmPassword) {
+      addNotification("New password and confirmation don't match", "error")
+      return
+    }
+
+    setIsChangingPassword(true)
+    try {
+      await changePassword(currentPassword, newPassword)
+      addNotification("Password changed successfully", "success")
+      setCurrentPassword("")
+      setNewPassword("")
+      setConfirmPassword("")
+    } catch (error) {
+      addNotification(getErrorMessage(error), "error")
+    } finally {
+      setIsChangingPassword(false)
+    }
   }
 
-  const handleSaveNotificationSettings = (e: React.FormEvent) => {
-    e.preventDefault()
-    addNotification("Notification preferences updated", "success")
+  if (isLoading) {
+    return (
+      <div className="p-6">
+        <p className="text-gray-600">Loading settings...</p>
+      </div>
+    )
   }
 
   return (
     <div className="p-6 space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Admin Settings</h1>
-        <p className="text-gray-600 mt-1">Manage platform configuration and preferences</p>
+        <p className="text-gray-600 mt-1">Manage your admin account</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Platform Settings */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Platform Settings</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSavePlatformSettings} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="platformName">Platform Name</Label>
-                <Input id="platformName" value={platformName} onChange={(e) => setPlatformName(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="platformEmail">Platform Email</Label>
-                <Input
-                  id="platformEmail"
-                  type="email"
-                  value={platformEmail}
-                  onChange={(e) => setPlatformEmail(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="supportEmail">Support Email</Label>
-                <Input
-                  id="supportEmail"
-                  type="email"
-                  value={supportEmail}
-                  onChange={(e) => setSupportEmail(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="platformDescription">Platform Description</Label>
-                <Textarea
-                  id="platformDescription"
-                  value={platformDescription}
-                  onChange={(e) => setPlatformDescription(e.target.value)}
-                  rows={3}
-                />
-              </div>
-              <Button
-                type="submit"
-                className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-              >
-                Save Platform Settings
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-
-        {/* Commission Settings */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Commission & Fees</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSaveCommissionSettings} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="vendorCommission">Vendor Commission (%)</Label>
-                <Input
-                  id="vendorCommission"
-                  type="number"
-                  step="0.1"
-                  value={vendorCommission}
-                  onChange={(e) => setVendorCommission(e.target.value)}
-                />
-                <p className="text-xs text-gray-500">Percentage taken from each vendor sale</p>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="transactionFee">Transaction Fee (%)</Label>
-                <Input
-                  id="transactionFee"
-                  type="number"
-                  step="0.1"
-                  value={transactionFee}
-                  onChange={(e) => setTransactionFee(e.target.value)}
-                />
-                <p className="text-xs text-gray-500">Additional fee per transaction</p>
-              </div>
-              <div className="p-4 bg-purple-50 rounded-lg">
-                <p className="text-sm font-medium text-gray-900">Current Rates</p>
-                <div className="mt-2 space-y-1">
-                  <p className="text-sm text-gray-600">Vendor Commission: {vendorCommission}%</p>
-                  <p className="text-sm text-gray-600">Transaction Fee: {transactionFee}%</p>
-                  <p className="text-sm font-medium text-purple-700 mt-2">
-                    Total Platform Fee:{" "}
-                    {(Number.parseFloat(vendorCommission) + Number.parseFloat(transactionFee)).toFixed(1)}%
-                  </p>
-                </div>
-              </div>
-              <Button
-                type="submit"
-                className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-              >
-                Save Commission Settings
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-
         {/* Admin Profile */}
         <Card>
           <CardHeader>
             <CardTitle>Admin Profile</CardTitle>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSaveProfileSettings} className="space-y-4">
+            <form onSubmit={handleSaveProfile} className="space-y-4">
               <div className="flex justify-center mb-4">
                 <div className="relative">
-                  <div className="w-24 h-24 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center text-white text-3xl font-bold shadow-lg">
-                    {adminName.charAt(0)}
+                  <div className="w-24 h-24 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center text-white text-3xl font-bold shadow-lg overflow-hidden">
+                    {user?.profileImage ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={user.profileImage} alt="Profile" className="w-full h-full object-cover" />
+                    ) : (
+                      (firstName || user?.email || "A").charAt(0).toUpperCase()
+                    )}
                   </div>
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="absolute bottom-0 right-0 rounded-full w-8 h-8 p-0"
-                    onClick={() => addNotification("Profile photo upload coming soon!", "info")}
+                  <label
+                    htmlFor="profile-photo-input"
+                    className="absolute bottom-0 right-0 rounded-full w-8 h-8 flex items-center justify-center bg-white border border-gray-200 shadow cursor-pointer"
                   >
-                    📷
-                  </Button>
+                    {isUploadingPhoto ? "…" : "📷"}
+                  </label>
+                  <input
+                    id="profile-photo-input"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handlePhotoChange}
+                    disabled={isUploadingPhoto}
+                  />
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="adminName">Full Name</Label>
-                <Input id="adminName" value={adminName} onChange={(e) => setAdminName(e.target.value)} />
+                <Label htmlFor="firstName">First Name</Label>
+                <Input id="firstName" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="lastName">Last Name</Label>
+                <Input id="lastName" value={lastName} onChange={(e) => setLastName(e.target.value)} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="adminEmail">Email</Label>
-                <Input
-                  id="adminEmail"
-                  type="email"
-                  value={adminEmail}
-                  onChange={(e) => setAdminEmail(e.target.value)}
-                />
+                <Input id="adminEmail" type="email" value={user?.email ?? ""} disabled />
+                <p className="text-xs text-gray-500">Email can't be changed here.</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="adminPhone">Phone</Label>
-                <Input id="adminPhone" type="tel" value={adminPhone} onChange={(e) => setAdminPhone(e.target.value)} />
+                <Input id="adminPhone" type="tel" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} />
               </div>
               <Button
                 type="submit"
+                disabled={isSavingProfile}
                 className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
               >
-                Update Profile
+                {isSavingProfile ? "Saving..." : "Update Profile"}
               </Button>
             </form>
           </CardContent>
         </Card>
 
-        {/* Notification Settings */}
+        {/* Security */}
         <Card>
           <CardHeader>
-            <CardTitle>Notification Preferences</CardTitle>
+            <CardTitle>Change Password</CardTitle>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSaveNotificationSettings} className="space-y-4">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div>
-                    <p className="font-medium text-sm">Email Notifications</p>
-                    <p className="text-xs text-gray-600">Receive email updates</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setEmailNotifications(!emailNotifications)}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      emailNotifications ? "bg-purple-600" : "bg-gray-300"
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        emailNotifications ? "translate-x-6" : "translate-x-1"
-                      }`}
-                    />
-                  </button>
-                </div>
-
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div>
-                    <p className="font-medium text-sm">Order Notifications</p>
-                    <p className="text-xs text-gray-600">Get notified of new orders</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setOrderNotifications(!orderNotifications)}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      orderNotifications ? "bg-purple-600" : "bg-gray-300"
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        orderNotifications ? "translate-x-6" : "translate-x-1"
-                      }`}
-                    />
-                  </button>
-                </div>
-
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div>
-                    <p className="font-medium text-sm">Vendor Notifications</p>
-                    <p className="text-xs text-gray-600">New vendor registrations</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setVendorNotifications(!vendorNotifications)}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      vendorNotifications ? "bg-purple-600" : "bg-gray-300"
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        vendorNotifications ? "translate-x-6" : "translate-x-1"
-                      }`}
-                    />
-                  </button>
-                </div>
+            <form onSubmit={handleChangePassword} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="currentPassword">Current Password</Label>
+                <Input
+                  id="currentPassword"
+                  type="password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="newPassword">New Password</Label>
+                <Input
+                  id="newPassword"
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword">Confirm New Password</Label>
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                />
               </div>
               <Button
                 type="submit"
+                disabled={isChangingPassword}
                 className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
               >
-                Save Preferences
+                {isChangingPassword ? "Updating..." : "Update Password"}
               </Button>
             </form>
           </CardContent>
         </Card>
       </div>
-
-      {/* Security Settings */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Security Settings</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 border rounded-lg">
-              <div>
-                <p className="font-medium">Change Password</p>
-                <p className="text-sm text-gray-600">Update your admin password</p>
-              </div>
-              <Button variant="outline" onClick={() => addNotification("Password change coming soon!", "info")}>
-                Change Password
-              </Button>
-            </div>
-            <div className="flex items-center justify-between p-4 border rounded-lg">
-              <div>
-                <p className="font-medium">Two-Factor Authentication</p>
-                <p className="text-sm text-gray-600">Add an extra layer of security</p>
-              </div>
-              <Button variant="outline" onClick={() => addNotification("Two-factor authentication coming soon!", "info")}>
-                Enable 2FA
-              </Button>
-            </div>
-            <div className="flex items-center justify-between p-4 border rounded-lg">
-              <div>
-                <p className="font-medium">Active Sessions</p>
-                <p className="text-sm text-gray-600">Manage your active login sessions</p>
-              </div>
-              <Button variant="outline" onClick={() => addNotification("Session management coming soon!", "info")}>
-                View Sessions
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   )
 }
