@@ -108,3 +108,18 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
   if (response.status === 204) return undefined as T
   return response.json() as Promise<T>
 }
+
+/** Calls a multipart/form-data endpoint (file uploads). Throws ApiError on any non-2xx response. */
+export async function apiUpload<T>(path: string, formData: FormData, method: "POST" | "PUT" = "POST"): Promise<T> {
+  const token = getAccessToken()
+  const headers: Record<string, string> = {}
+  if (token) headers.Authorization = `Bearer ${token}`
+
+  const response = await fetch(buildUrl(path), { method, headers, body: formData })
+
+  if (!response.ok) {
+    throw new ApiError(response.status, await parseErrorMessage(response))
+  }
+
+  return response.json() as Promise<T>
+}

@@ -5,6 +5,12 @@ export interface SafeUser {
   _id: string
   email: string
   role: "student" | "admin" | "vendor"
+  profile: {
+    firstName?: string
+    lastName?: string
+    phoneNumber?: string
+    profileImage?: string
+  }
 }
 
 export interface VendorProfile {
