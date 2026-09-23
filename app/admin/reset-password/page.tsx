@@ -3,20 +3,25 @@
 import type React from "react"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useNotification } from "@/lib/notification-context"
+import { resetPassword } from "@/lib/api/auth"
+import { ApiError } from "@/lib/api/client"
 
 export default function AdminResetPasswordPage() {
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const token = searchParams.get("token")
   const { addNotification } = useNotification()
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     if (password !== confirmPassword) {
@@ -29,9 +34,22 @@ export default function AdminResetPasswordPage() {
       return
     }
 
-    // Mock password reset - in production, this would update the password
-    addNotification("Password reset successfully", "success")
-    router.push("/admin/login")
+    if (!token) {
+      addNotification("This reset link is invalid or has expired", "error")
+      return
+    }
+
+    setIsSubmitting(true)
+    try {
+      await resetPassword(token, password)
+      addNotification("Password reset successfully", "success")
+      router.push("/admin/login")
+    } catch (error) {
+      const message = error instanceof ApiError ? error.message : "Something went wrong, please try again"
+      addNotification(message, "error")
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -73,9 +91,10 @@ export default function AdminResetPasswordPage() {
             </div>
             <Button
               type="submit"
+              disabled={isSubmitting}
               className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
             >
-              Reset Password
+              {isSubmitting ? "Resetting..." : "Reset Password"}
             </Button>
           </form>
         </CardContent>

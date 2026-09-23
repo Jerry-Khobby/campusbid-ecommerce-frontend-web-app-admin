@@ -8,18 +8,31 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useNotification } from "@/lib/notification-context"
+import { requestPasswordReset } from "@/lib/api/auth"
+import { ApiError } from "@/lib/api/client"
 import Link from "next/link"
 
 export default function AdminForgotPasswordPage() {
   const [email, setEmail] = useState("")
   const [submitted, setSubmitted] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const { addNotification } = useNotification()
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // Mock submission - in production, this would send a reset email
-    setSubmitted(true)
-    addNotification("Password reset link sent to your email", "success")
+    if (!email) return
+
+    setIsSubmitting(true)
+    try {
+      await requestPasswordReset(email)
+      setSubmitted(true)
+      addNotification("Password reset link sent to your email", "success")
+    } catch (error) {
+      const message = error instanceof ApiError ? error.message : "Something went wrong, please try again"
+      addNotification(message, "error")
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -50,9 +63,10 @@ export default function AdminForgotPasswordPage() {
               </div>
               <Button
                 type="submit"
+                disabled={isSubmitting}
                 className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
               >
-                Send Reset Link
+                {isSubmitting ? "Sending..." : "Send Reset Link"}
               </Button>
               <div className="text-center">
                 <Link href="/admin/login" className="text-sm text-purple-600 hover:text-purple-700 hover:underline">
