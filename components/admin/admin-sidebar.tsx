@@ -13,6 +13,7 @@ const navItems = [
   { name: "Orders", path: "/admin/orders", icon: "📦" },
   { name: "Products", path: "/admin/products", icon: "🛍️" },
   { name: "Categories", path: "/admin/categories", icon: "🗂️" },
+  { name: "Payments", path: "/admin/payments", icon: "💳" },
   { name: "Analytics", path: "/admin/analytics", icon: "📈" },
   { name: "Settings", path: "/admin/settings", icon: "⚙️" },
 ];
