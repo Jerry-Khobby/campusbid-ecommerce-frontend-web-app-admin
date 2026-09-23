@@ -114,7 +114,10 @@ export default function AdminOrdersPage() {
   const totalOrders = orders.length
   const completedOrders = orders.filter((o) => o.status === "completed").length
   const pendingOrders = orders.filter((o) => o.status === "pending").length
-  const totalRevenue = orders.reduce((sum, o) => sum + (o.pricing?.total ?? 0), 0)
+  // Matches the backend dashboard's totalRevenue: only orders that actually completed count as revenue.
+  const totalRevenue = orders
+    .filter((o) => o.status === "completed")
+    .reduce((sum, o) => sum + (o.pricing?.total ?? 0), 0)
 
   return (
     <div className="p-6 space-y-6">
