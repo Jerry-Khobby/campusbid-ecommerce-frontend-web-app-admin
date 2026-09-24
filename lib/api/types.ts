@@ -122,6 +122,14 @@ export interface AdminCustomerGrowthPoint {
   customers: number
 }
 
+/** Percentage change vs the equal-length prior period; null means both periods were zero
+ * (no baseline to compare against - render as "new" rather than a misleading 0%). */
+export interface AdminKpiDeltas {
+  revenueChangePct: number | null
+  ordersChangePct: number | null
+  newCustomersChangePct: number | null
+}
+
 export interface AdminDashboard {
   totalRevenue: number
   totalOrders: number
@@ -136,6 +144,7 @@ export interface AdminDashboard {
   topVendors: AdminTopVendor[]
   revenueByCategory: AdminRevenueByCategory[]
   customerGrowth: AdminCustomerGrowthPoint[]
+  kpiDeltas: AdminKpiDeltas
 }
 
 export interface AdminAnalytics {

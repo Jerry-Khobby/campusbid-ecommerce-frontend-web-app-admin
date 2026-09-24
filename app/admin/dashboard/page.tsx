@@ -5,12 +5,21 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import {
-  LineChart,
+  BarChart2,
+  Clock,
+  DollarSign,
+  Package,
+  ShoppingCart,
+  Store,
+  UserCheck,
+  Users,
+} from "lucide-react";
+import {
   Line,
-  AreaChart,
+  ComposedChart,
   Area,
-  BarChart,
   Bar,
+  BarChart,
   PieChart,
   Pie,
   Cell,
@@ -25,18 +34,10 @@ import { useNotification } from "@/lib/notification-context";
 import { ApiError } from "@/lib/api/client";
 import { fetchAdminDashboard } from "@/lib/api/admin";
 import type { AdminDashboard } from "@/lib/api/types";
-
-const STATUS_COLORS: Record<string, string> = {
-  pending: "#f59e0b",
-  accepted: "#8b5cf6",
-  preparing: "#3b82f6",
-  ready: "#8b5cf6",
-  out_for_delivery: "#3b82f6",
-  delivered: "#10b981",
-  completed: "#10b981",
-  cancelled: "#ef4444",
-  refunded: "#ef4444",
-};
+import { KpiTile } from "@/components/dashboard/kpi-tile";
+import { LineAreaTooltip, BarTooltip, PieTooltip } from "@/components/dashboard/chart-tooltip";
+import { formatCompactNumber, formatCurrency } from "@/lib/format";
+import { CATEGORICAL, CHART_INK, ORDER_STATUS_COLORS, categoricalColorAt } from "@/lib/chart-palette";
 
 function getErrorMessage(error: unknown): string {
   return error instanceof ApiError ? error.message : "Something went wrong. Please try again.";
@@ -116,18 +117,24 @@ export default function AdminDashboardPage() {
   const orderStatusData = dashboard.orderStatusBreakdown.map((entry) => ({
     name: formatStatus(entry.status),
     value: entry.count,
-    color: STATUS_COLORS[entry.status] ?? "#9ca3af",
+    fill: ORDER_STATUS_COLORS[entry.status] ?? CHART_INK.muted,
   }));
+  const totalOrdersInBreakdown = orderStatusData.reduce((sum, entry) => sum + entry.value, 0);
 
-  const categoryData = dashboard.revenueByCategory.map((entry) => ({
+  const categoryData = dashboard.revenueByCategory.map((entry, index) => ({
     category: entry.category,
     sales: entry.revenue,
+    fill: categoricalColorAt(index),
   }));
 
   const customerGrowthData = dashboard.customerGrowth.map((point) => ({
     month: formatMonthLabel(point.month),
     customers: point.customers,
   }));
+
+  const revenueSparkline = dashboard.revenueTrend.map((p) => p.revenue);
+  const ordersSparkline = dashboard.revenueTrend.map((p) => p.orders);
+  const customersSparkline = dashboard.customerGrowth.map((p) => p.customers);
 
   return (
     <div className="p-6 space-y-6">
@@ -139,118 +146,100 @@ export default function AdminDashboardPage() {
         </p>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <Card className="border-l-4 border-l-green-500">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-gray-600">
-              Total Revenue
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-gray-900">
-              ${dashboard.totalRevenue.toLocaleString()}
-            </div>
-            <p className="text-sm text-gray-500 mt-1">From completed orders</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-blue-500">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-gray-600">
-              Total Orders
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-gray-900">
-              {dashboard.totalOrders.toLocaleString()}
-            </div>
-            <p className="text-sm text-blue-600 mt-1">
-              {dashboard.completedToday} completed today
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-purple-500">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-gray-600">
-              Active Vendors
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-gray-900">
-              {dashboard.activeVendors}
-            </div>
-            <p className="text-sm text-purple-600 mt-1">
-              {dashboard.pendingVendors} awaiting approval
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-orange-500">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-gray-600">
-              Active Customers
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-gray-900">
-              {dashboard.activeCustomers.toLocaleString()}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-yellow-500">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-gray-600">
-              Pending Orders
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-gray-900">
-              {dashboard.pendingOrders}
-            </div>
-            <p className="text-sm text-yellow-600 mt-1">Requires attention</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-pink-500">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-gray-600">
-              Vendors Awaiting Approval
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-gray-900">{dashboard.pendingVendors}</div>
-            <Link href="/admin/vendors" className="text-sm text-pink-600 mt-1 hover:underline inline-block">
-              Review vendors →
-            </Link>
-          </CardContent>
-        </Card>
+      {/* KPI Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <KpiTile
+          label="Total Revenue"
+          value={formatCompactNumber(dashboard.totalRevenue, { currency: true })}
+          icon={DollarSign}
+          accentColor={CATEGORICAL.blue}
+          delta={{ deltaPct: dashboard.kpiDeltas.revenueChangePct, comparisonLabel: "vs last 7 days" }}
+          sparkline={revenueSparkline}
+        />
+        <KpiTile
+          label="Total Orders"
+          value={formatCompactNumber(dashboard.totalOrders)}
+          icon={ShoppingCart}
+          accentColor={CATEGORICAL.orange}
+          delta={{ deltaPct: dashboard.kpiDeltas.ordersChangePct, comparisonLabel: "vs last 7 days" }}
+          sparkline={ordersSparkline}
+        />
+        <KpiTile
+          label="Active Customers"
+          value={formatCompactNumber(dashboard.activeCustomers)}
+          icon={Users}
+          accentColor={CATEGORICAL.yellow}
+          delta={{ deltaPct: dashboard.kpiDeltas.newCustomersChangePct, comparisonLabel: "new vs last 7 days" }}
+          sparkline={customersSparkline}
+        />
+        <KpiTile
+          label="Active Vendors"
+          value={formatCompactNumber(dashboard.activeVendors)}
+          icon={Store}
+          accentColor={CATEGORICAL.aqua}
+          caption={`${dashboard.pendingVendors} awaiting approval`}
+        />
+        <KpiTile
+          label="Pending Orders"
+          value={formatCompactNumber(dashboard.pendingOrders)}
+          icon={Clock}
+          accentColor={CATEGORICAL.magenta}
+          caption={`${dashboard.completedToday} completed today`}
+        />
+        <KpiTile
+          label="Vendors Awaiting Approval"
+          value={formatCompactNumber(dashboard.pendingVendors)}
+          icon={UserCheck}
+          accentColor={CATEGORICAL.violet}
+          link={{ href: "/admin/vendors", label: "Review vendors →" }}
+        />
       </div>
 
       {revenueData.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Revenue & Orders (Last 7 Days)</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <BarChart2 size={18} className="text-gray-400" />
+              Revenue & Orders
+            </CardTitle>
+            <p className="text-sm text-gray-500">Last 7 days</p>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={revenueData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis dataKey="date" stroke="#6b7280" />
-                <YAxis stroke="#6b7280" />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "#fff",
-                    border: "1px solid #e5e7eb",
-                    borderRadius: "8px",
-                  }}
+              <ComposedChart data={revenueData}>
+                <CartesianGrid strokeDasharray="3 3" stroke={CHART_INK.gridline} vertical={false} />
+                <XAxis dataKey="date" stroke={CHART_INK.muted} tickLine={false} axisLine={{ stroke: CHART_INK.baseline }} />
+                <YAxis
+                  yAxisId="revenue"
+                  stroke={CHART_INK.muted}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(v) => formatCompactNumber(v, { currency: true })}
                 />
-                <Legend />
-                <Line type="monotone" dataKey="revenue" stroke="#8b5cf6" strokeWidth={2} name="Revenue ($)" />
-                <Line type="monotone" dataKey="orders" stroke="#3b82f6" strokeWidth={2} name="Orders" />
-              </LineChart>
+                <YAxis yAxisId="orders" orientation="right" stroke={CHART_INK.muted} tickLine={false} axisLine={false} hide />
+                <Tooltip
+                  cursor={{ stroke: CHART_INK.baseline, strokeDasharray: "3 3" }}
+                  content={
+                    <LineAreaTooltip
+                      formatValue={(v, dataKey) => (dataKey === "revenue" ? formatCurrency(v) : v.toLocaleString())}
+                    />
+                  }
+                />
+                <Legend
+                  formatter={(value) => <span style={{ color: CHART_INK.secondary, fontSize: 13 }}>{value}</span>}
+                />
+                <Bar yAxisId="orders" dataKey="orders" name="Orders" fill={CATEGORICAL.orange} radius={[4, 4, 0, 0]} maxBarSize={24} />
+                <Line
+                  yAxisId="revenue"
+                  type="monotone"
+                  dataKey="revenue"
+                  stroke={CATEGORICAL.blue}
+                  strokeWidth={2}
+                  name="Revenue"
+                  dot={{ r: 3, fill: CATEGORICAL.blue, strokeWidth: 0 }}
+                  activeDot={{ r: 5 }}
+                />
+              </ComposedChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
@@ -260,42 +249,44 @@ export default function AdminDashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle>Order Status Distribution</CardTitle>
+            <p className="text-sm text-gray-500">All-time</p>
           </CardHeader>
           <CardContent>
             {orderStatusData.length === 0 ? (
               <p className="text-sm text-gray-500 py-12 text-center">No orders yet.</p>
             ) : (
-              <>
+              <div className="relative">
                 <ResponsiveContainer width="100%" height={300}>
                   <PieChart>
                     <Pie
                       data={orderStatusData}
                       cx="50%"
                       cy="50%"
-                      labelLine={false}
-                      label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
+                      innerRadius={70}
                       outerRadius={100}
-                      fill="#8884d8"
+                      paddingAngle={2}
+                      cornerRadius={3}
                       dataKey="value"
+                      stroke="none"
                     >
-                      {orderStatusData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      {orderStatusData.map((entry) => (
+                        <Cell key={entry.name} fill={entry.fill} />
                       ))}
                     </Pie>
-                    <Tooltip />
+                    <Tooltip content={<PieTooltip />} />
+                    <Legend
+                      layout="vertical"
+                      verticalAlign="middle"
+                      align="right"
+                      formatter={(value) => <span style={{ color: CHART_INK.secondary, fontSize: 13 }}>{value}</span>}
+                    />
                   </PieChart>
                 </ResponsiveContainer>
-                <div className="grid grid-cols-2 gap-2 mt-4">
-                  {orderStatusData.map((status) => (
-                    <div key={status.name} className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: status.color }} />
-                      <span className="text-sm text-gray-600">
-                        {status.name}: {status.value}
-                      </span>
-                    </div>
-                  ))}
+                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center" style={{ paddingRight: "33%" }}>
+                  <p className="text-2xl font-bold text-gray-900">{totalOrdersInBreakdown.toLocaleString()}</p>
+                  <p className="text-xs text-gray-500">Total orders</p>
                 </div>
-              </>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -303,24 +294,29 @@ export default function AdminDashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle>Top Categories by Sales</CardTitle>
+            <p className="text-sm text-gray-500">All-time revenue</p>
           </CardHeader>
           <CardContent>
             {categoryData.length === 0 ? (
               <p className="text-sm text-gray-500 py-12 text-center">No sales yet.</p>
             ) : (
               <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={categoryData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="category" stroke="#6b7280" />
-                  <YAxis stroke="#6b7280" />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "#fff",
-                      border: "1px solid #e5e7eb",
-                      borderRadius: "8px",
-                    }}
+                <BarChart data={categoryData} layout="vertical" margin={{ left: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={CHART_INK.gridline} horizontal={false} />
+                  <XAxis
+                    type="number"
+                    stroke={CHART_INK.muted}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(v) => formatCompactNumber(v, { currency: true })}
                   />
-                  <Bar dataKey="sales" fill="#8b5cf6" radius={[8, 8, 0, 0]} />
+                  <YAxis type="category" dataKey="category" stroke={CHART_INK.muted} tickLine={false} axisLine={false} width={80} />
+                  <Tooltip cursor={{ fill: "rgba(11,11,11,0.04)" }} content={<BarTooltip formatValue={formatCurrency} />} />
+                  <Bar dataKey="sales" radius={[0, 6, 6, 0]} maxBarSize={24}>
+                    {categoryData.map((entry) => (
+                      <Cell key={entry.category} fill={entry.fill} />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -331,36 +327,36 @@ export default function AdminDashboardPage() {
       {customerGrowthData.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Customer Growth (Last 6 Months)</CardTitle>
+            <CardTitle>Customer Growth</CardTitle>
+            <p className="text-sm text-gray-500">Last 6 months, cumulative</p>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={customerGrowthData}>
+            <ResponsiveContainer width="100%" height={260}>
+              <ComposedChart data={customerGrowthData}>
                 <defs>
                   <linearGradient id="colorCustomers" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.8} />
-                    <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                    <stop offset="5%" stopColor={CATEGORICAL.blue} stopOpacity={0.18} />
+                    <stop offset="95%" stopColor={CATEGORICAL.blue} stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis dataKey="month" stroke="#6b7280" />
-                <YAxis stroke="#6b7280" />
+                <CartesianGrid strokeDasharray="3 3" stroke={CHART_INK.gridline} vertical={false} />
+                <XAxis dataKey="month" stroke={CHART_INK.muted} tickLine={false} axisLine={{ stroke: CHART_INK.baseline }} />
+                <YAxis stroke={CHART_INK.muted} tickLine={false} axisLine={false} tickFormatter={(v) => formatCompactNumber(v)} />
                 <Tooltip
-                  contentStyle={{
-                    backgroundColor: "#fff",
-                    border: "1px solid #e5e7eb",
-                    borderRadius: "8px",
-                  }}
+                  cursor={{ stroke: CHART_INK.baseline, strokeDasharray: "3 3" }}
+                  content={<LineAreaTooltip formatValue={(v) => v.toLocaleString()} />}
                 />
                 <Area
                   type="monotone"
                   dataKey="customers"
-                  stroke="#8b5cf6"
+                  name="Customers"
+                  stroke={CATEGORICAL.blue}
                   strokeWidth={2}
-                  fillOpacity={1}
                   fill="url(#colorCustomers)"
+                  dot={{ r: 3, fill: CATEGORICAL.blue, strokeWidth: 0 }}
+                  activeDot={{ r: 5 }}
                 />
-              </AreaChart>
+              </ComposedChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
@@ -382,34 +378,34 @@ export default function AdminDashboardPage() {
               <p className="text-sm text-gray-500">No orders yet.</p>
             ) : (
               <div className="space-y-4">
-                {dashboard.recentOrders.map((order) => (
-                  <div
-                    key={order.orderNumber}
-                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-                  >
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="font-semibold text-sm">{order.orderNumber}</p>
-                        <span
-                          className="text-xs px-2 py-1 rounded-full"
-                          style={{
-                            backgroundColor: `${STATUS_COLORS[order.status] ?? "#9ca3af"}20`,
-                            color: STATUS_COLORS[order.status] ?? "#6b7280",
-                          }}
-                        >
-                          {formatStatus(order.status)}
-                        </span>
+                {dashboard.recentOrders.map((order) => {
+                  const statusColor = ORDER_STATUS_COLORS[order.status] ?? CHART_INK.muted;
+                  return (
+                    <div
+                      key={order.orderNumber}
+                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                    >
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-sm">{order.orderNumber}</p>
+                          <span
+                            className="text-xs px-2 py-1 rounded-full"
+                            style={{ backgroundColor: `${statusColor}20`, color: statusColor }}
+                          >
+                            {formatStatus(order.status)}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-600">
+                          {getPartyName(order.customer)} → {getPartyName(order.vendor)}
+                        </p>
+                        <p className="text-xs text-gray-500">{new Date(order.createdAt).toLocaleDateString()}</p>
                       </div>
-                      <p className="text-sm text-gray-600">
-                        {getPartyName(order.customer)} → {getPartyName(order.vendor)}
-                      </p>
-                      <p className="text-xs text-gray-500">{new Date(order.createdAt).toLocaleDateString()}</p>
+                      <div className="text-right">
+                        <p className="font-bold text-gray-900">${order.total.toFixed(2)}</p>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="font-bold text-gray-900">${order.total.toFixed(2)}</p>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </CardContent>
@@ -466,7 +462,7 @@ export default function AdminDashboardPage() {
                 variant="outline"
                 className="w-full h-20 flex flex-col gap-2 bg-transparent"
               >
-                <span className="text-2xl">🏪</span>
+                <Store size={22} className="text-gray-500" />
                 <span className="text-sm">Manage Vendors</span>
               </Button>
             </Link>
@@ -475,7 +471,7 @@ export default function AdminDashboardPage() {
                 variant="outline"
                 className="w-full h-20 flex flex-col gap-2 bg-transparent"
               >
-                <span className="text-2xl">👥</span>
+                <Users size={22} className="text-gray-500" />
                 <span className="text-sm">View Customers</span>
               </Button>
             </Link>
@@ -484,7 +480,7 @@ export default function AdminDashboardPage() {
                 variant="outline"
                 className="w-full h-20 flex flex-col gap-2 bg-transparent"
               >
-                <span className="text-2xl">📦</span>
+                <Package size={22} className="text-gray-500" />
                 <span className="text-sm">Review Orders</span>
               </Button>
             </Link>
@@ -493,7 +489,7 @@ export default function AdminDashboardPage() {
                 variant="outline"
                 className="w-full h-20 flex flex-col gap-2 bg-transparent"
               >
-                <span className="text-2xl">📈</span>
+                <BarChart2 size={22} className="text-gray-500" />
                 <span className="text-sm">View Analytics</span>
               </Button>
             </Link>
