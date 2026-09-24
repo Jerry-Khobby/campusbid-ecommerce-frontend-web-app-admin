@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useUser } from "@/lib/user-context";
 import { useNotification } from "@/lib/notification-context";
 import { Button } from "@/components/ui/button";
+import { NotificationBell } from "@/components/notification-bell";
 
 const navItems = [
   { name: "Dashboard", path: "/admin/dashboard", icon: "📊" },
@@ -34,14 +35,17 @@ export function AdminSidebar() {
     <div className="w-64 bg-white border-r border-gray-200 flex flex-col h-screen sticky top-0">
       {/* Header */}
       <div className="p-6 border-b border-gray-200">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-blue-600 rounded-xl flex items-center justify-center text-white text-lg font-bold shadow-md">
-            CB
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-blue-600 rounded-xl flex items-center justify-center text-white text-lg font-bold shadow-md shrink-0">
+              CB
+            </div>
+            <div className="min-w-0">
+              <h1 className="font-bold text-lg text-gray-900 truncate">CampusBid</h1>
+              <p className="text-xs text-gray-500 truncate">Admin Portal</p>
+            </div>
           </div>
-          <div>
-            <h1 className="font-bold text-lg text-gray-900">CampusBid</h1>
-            <p className="text-xs text-gray-500">Admin Portal</p>
-          </div>
+          <NotificationBell />
         </div>
       </div>
 
