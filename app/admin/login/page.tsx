@@ -2,7 +2,7 @@
 
 import type React from "react";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,8 +33,15 @@ function AdminLoginPageInner() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { login } = useUser();
+  const redirectTo = searchParams.get("redirect") || "/admin/dashboard";
+  const { login, isLoggedIn, isLoading } = useUser();
   const { addNotification } = useNotification();
+
+  useEffect(() => {
+    if (!isLoading && isLoggedIn) {
+      router.replace(redirectTo);
+    }
+  }, [isLoading, isLoggedIn, redirectTo, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,7 +50,7 @@ function AdminLoginPageInner() {
     try {
       await login(email, password);
       addNotification("Logged in successfully", "success");
-      router.push(searchParams.get("redirect") || "/admin/dashboard");
+      router.push(redirectTo);
     } catch (error) {
       const message = error instanceof ApiError ? error.message : (error as Error).message;
       addNotification(message || "Login failed", "error");
@@ -55,6 +62,10 @@ function AdminLoginPageInner() {
   const handleSocialLogin = (provider: string) => {
     addNotification(`${provider} login coming soon`, "info");
   };
+
+  if (isLoading || isLoggedIn) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 via-white to-blue-50 p-4">
