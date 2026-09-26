@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { Suspense, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,6 +13,14 @@ import { resetPassword } from "@/lib/api/auth"
 import { ApiError } from "@/lib/api/client"
 
 export default function AdminResetPasswordPage() {
+  return (
+    <Suspense fallback={null}>
+      <AdminResetPasswordPageInner />
+    </Suspense>
+  )
+}
+
+function AdminResetPasswordPageInner() {
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
