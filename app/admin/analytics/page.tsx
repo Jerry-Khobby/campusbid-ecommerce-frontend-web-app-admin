@@ -6,6 +6,7 @@ import { useNotification } from "@/lib/notification-context"
 import { ApiError } from "@/lib/api/client"
 import { fetchAdminAnalytics, fetchAdminDashboard } from "@/lib/api/admin"
 import type { AdminAnalytics, AdminDashboard } from "@/lib/api/types"
+import { formatCurrency } from "@/lib/format"
 
 function getErrorMessage(error: unknown): string {
   return error instanceof ApiError ? error.message : "Something went wrong. Please try again."
@@ -68,7 +69,7 @@ export default function AdminAnalyticsPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-gray-900">${dashboard.totalRevenue.toLocaleString()}</div>
+            <div className="text-2xl font-bold text-gray-900">{formatCurrency(dashboard.totalRevenue)}</div>
             <p className="text-sm text-gray-600">Total Revenue</p>
           </CardContent>
         </Card>
@@ -86,7 +87,7 @@ export default function AdminAnalyticsPage() {
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-gray-900">${averageOrderValue.toFixed(2)}</div>
+            <div className="text-2xl font-bold text-gray-900">{formatCurrency(averageOrderValue)}</div>
             <p className="text-sm text-gray-600">Avg Order Value</p>
           </CardContent>
         </Card>
@@ -108,7 +109,7 @@ export default function AdminAnalyticsPage() {
                     <div key={item.category}>
                       <div className="flex justify-between mb-1">
                         <span className="text-sm font-medium">{item.category}</span>
-                        <span className="text-sm text-gray-600">${item.revenue.toLocaleString()}</span>
+                        <span className="text-sm text-gray-600">{formatCurrency(item.revenue)}</span>
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-2">
                         <div
@@ -142,7 +143,7 @@ export default function AdminAnalyticsPage() {
                       <p className="font-medium text-sm">{vendor.name}</p>
                       <p className="text-xs text-gray-600">{vendor.orders} orders</p>
                     </div>
-                    <p className="font-bold text-gray-900">${vendor.revenue.toLocaleString()}</p>
+                    <p className="font-bold text-gray-900">{formatCurrency(vendor.revenue)}</p>
                   </div>
                 ))}
               </div>

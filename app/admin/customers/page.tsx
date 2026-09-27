@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { useNotification } from "@/lib/notification-context";
 import { ApiError } from "@/lib/api/client";
+import { formatCurrency } from "@/lib/format";
 import { approveCustomer, fetchAdminCustomers, suspendCustomer } from "@/lib/api/users";
 import type { AdminCustomer } from "@/lib/api/types";
 
@@ -126,7 +127,7 @@ export default function AdminCustomersPage() {
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-gray-900">${totalRevenue.toLocaleString()}</div>
+            <div className="text-2xl font-bold text-gray-900">{formatCurrency(totalRevenue)}</div>
             <p className="text-sm text-gray-600">Total Revenue</p>
           </CardContent>
         </Card>
@@ -205,7 +206,7 @@ export default function AdminCustomersPage() {
                       </td>
                       <td className="px-4 py-4">
                         <p className="text-sm font-medium text-gray-900">
-                          ${customer.totalSpent.toLocaleString()}
+                          {formatCurrency(customer.totalSpent)}
                         </p>
                       </td>
                       <td className="px-4 py-4">
@@ -324,7 +325,7 @@ export default function AdminCustomersPage() {
                   <Card>
                     <CardContent className="pt-4">
                       <p className="text-2xl font-bold text-gray-900">
-                        ${selectedCustomer.totalSpent.toLocaleString()}
+                        {formatCurrency(selectedCustomer.totalSpent)}
                       </p>
                       <p className="text-sm text-gray-600">Total Spent</p>
                     </CardContent>
