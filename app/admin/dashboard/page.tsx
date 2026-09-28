@@ -401,7 +401,7 @@ export default function AdminDashboardPage() {
                         <p className="text-xs text-gray-500">{new Date(order.createdAt).toLocaleDateString()}</p>
                       </div>
                       <div className="text-right">
-                        <p className="font-bold text-gray-900">${order.total.toFixed(2)}</p>
+                        <p className="font-bold text-gray-900">{formatCurrency(order.total)}</p>
                       </div>
                     </div>
                   );
@@ -439,7 +439,7 @@ export default function AdminDashboardPage() {
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="font-bold text-gray-900">${vendor.revenue.toLocaleString()}</p>
+                      <p className="font-bold text-gray-900">{formatCurrency(vendor.revenue)}</p>
                       <p className="text-xs text-gray-500">Total sales</p>
                     </div>
                   </div>

@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ApiError } from "@/lib/api/client"
 import { fetchAdminOrders } from "@/lib/api/orders"
 import type { AdminOrder } from "@/lib/api/types"
+import { formatCurrency } from "@/lib/format"
 
 const SEARCH_DEBOUNCE_MS = 300
 
@@ -151,7 +152,7 @@ export default function AdminOrdersPage() {
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-gray-900">${totalRevenue.toFixed(2)}</div>
+            <div className="text-2xl font-bold text-gray-900">{formatCurrency(totalRevenue)}</div>
             <p className="text-sm text-gray-600">Total Revenue</p>
           </CardContent>
         </Card>
@@ -233,7 +234,7 @@ export default function AdminOrdersPage() {
                       </td>
                       <td className="px-4 py-4">
                         <p className="text-sm font-medium text-gray-900">
-                          ${(order.pricing?.total ?? 0).toFixed(2)}
+                          {formatCurrency(order.pricing?.total ?? 0)}
                         </p>
                       </td>
                       <td className="px-4 py-4">
@@ -313,7 +314,7 @@ export default function AdminOrdersPage() {
                       <p className="text-sm font-medium">
                         {typeof item.productId === "string" ? item.productId : item.productId.name} × {item.quantity}
                       </p>
-                      <p className="text-sm text-gray-600">${(item.price * item.quantity).toFixed(2)}</p>
+                      <p className="text-sm text-gray-600">{formatCurrency(item.price * item.quantity)}</p>
                     </div>
                   ))}
                 </div>
@@ -323,7 +324,7 @@ export default function AdminOrdersPage() {
                 <div className="flex justify-between items-center">
                   <span className="font-semibold">Total Amount</span>
                   <span className="text-2xl font-bold text-gray-900">
-                    ${(selectedOrder.pricing?.total ?? 0).toFixed(2)}
+                    {formatCurrency(selectedOrder.pricing?.total ?? 0)}
                   </span>
                 </div>
               </div>

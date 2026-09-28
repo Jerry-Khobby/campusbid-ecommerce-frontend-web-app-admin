@@ -16,6 +16,7 @@ import {
   type PaymentParty,
   type PaymentStatus,
 } from "@/lib/api/payments"
+import { formatCurrency } from "@/lib/format"
 
 const SEARCH_DEBOUNCE_MS = 300
 const STATUS_OPTIONS: PaymentStatus[] = ["pending", "held", "released", "refunded", "failed"]
@@ -140,19 +141,19 @@ export default function AdminPaymentsPage() {
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-gray-900">${totalHeld.toFixed(2)}</div>
+            <div className="text-2xl font-bold text-gray-900">{formatCurrency(totalHeld)}</div>
             <p className="text-sm text-gray-600">Held in Escrow</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-gray-900">${totalReleased.toFixed(2)}</div>
+            <div className="text-2xl font-bold text-gray-900">{formatCurrency(totalReleased)}</div>
             <p className="text-sm text-gray-600">Released to Vendors</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-gray-900">${totalRefunded.toFixed(2)}</div>
+            <div className="text-2xl font-bold text-gray-900">{formatCurrency(totalRefunded)}</div>
             <p className="text-sm text-gray-600">Refunded</p>
           </CardContent>
         </Card>
@@ -234,7 +235,7 @@ export default function AdminPaymentsPage() {
                       </td>
                       <td className="px-4 py-4">
                         <p className="text-sm font-medium text-gray-900">
-                          {payment.currency} {payment.amount.toFixed(2)}
+                          {formatCurrency(payment.amount)}
                         </p>
                       </td>
                       <td className="px-4 py-4">
@@ -299,7 +300,7 @@ export default function AdminPaymentsPage() {
                 <div>
                   <Label className="text-gray-600">Amount</Label>
                   <p className="font-medium">
-                    {selectedPayment.currency} {selectedPayment.amount.toFixed(2)}
+                    {formatCurrency(selectedPayment.amount)}
                   </p>
                 </div>
               </div>
@@ -308,7 +309,7 @@ export default function AdminPaymentsPage() {
                 <Card>
                   <CardContent className="pt-4">
                     <p className="text-lg font-bold text-gray-900">
-                      {selectedPayment.currency} {selectedPayment.adminCommission.toFixed(2)}
+                      {formatCurrency(selectedPayment.adminCommission)}
                     </p>
                     <p className="text-sm text-gray-600">Admin Commission</p>
                   </CardContent>
@@ -316,7 +317,7 @@ export default function AdminPaymentsPage() {
                 <Card>
                   <CardContent className="pt-4">
                     <p className="text-lg font-bold text-gray-900">
-                      {selectedPayment.currency} {selectedPayment.vendorPayout.toFixed(2)}
+                      {formatCurrency(selectedPayment.vendorPayout)}
                     </p>
                     <p className="text-sm text-gray-600">Vendor Payout</p>
                   </CardContent>

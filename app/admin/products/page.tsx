@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { ApiError } from "@/lib/api/client"
 import { fetchAdminProducts, fetchVendorNameMap } from "@/lib/api/products"
 import type { AdminProduct } from "@/lib/api/types"
+import { formatCurrency } from "@/lib/format"
 
 function getErrorMessage(error: unknown): string {
   return error instanceof ApiError ? error.message : "Something went wrong. Please try again."
@@ -166,7 +167,7 @@ export default function AdminProductsPage() {
                           <p className="text-sm text-gray-600">{product.category}</p>
                         </td>
                         <td className="px-4 py-4">
-                          <p className="text-sm font-medium text-gray-900">${product.price}</p>
+                          <p className="text-sm font-medium text-gray-900">{formatCurrency(product.price)}</p>
                         </td>
                         <td className="px-4 py-4">
                           <p className="text-sm text-gray-900">{product.stock}</p>

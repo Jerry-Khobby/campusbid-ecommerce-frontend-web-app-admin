@@ -16,6 +16,7 @@ import { useNotification } from "@/lib/notification-context";
 import { ApiError } from "@/lib/api/client";
 import { approveVendor, fetchAdminVendors, suspendVendor } from "@/lib/api/vendors";
 import type { SafeVendor } from "@/lib/api/types";
+import { formatCurrency } from "@/lib/format";
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -200,7 +201,7 @@ export default function AdminVendorsPage() {
                       </td>
                       <td className="px-4 py-4">
                         <p className="text-sm font-medium text-gray-900">
-                          ${vendor.stats.totalRevenue.toLocaleString()}
+                          {formatCurrency(vendor.stats.totalRevenue)}
                         </p>
                       </td>
                       <td className="px-4 py-4">
@@ -331,7 +332,7 @@ export default function AdminVendorsPage() {
                   <Card>
                     <CardContent className="pt-4">
                       <p className="text-2xl font-bold text-gray-900">
-                        ${selectedVendor.stats.totalRevenue.toLocaleString()}
+                        {formatCurrency(selectedVendor.stats.totalRevenue)}
                       </p>
                       <p className="text-sm text-gray-600">Total Revenue</p>
                     </CardContent>
