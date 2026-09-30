@@ -11,6 +11,7 @@ import { useNotification } from "@/lib/notification-context"
 import { useUser } from "@/lib/user-context"
 import { ApiError } from "@/lib/api/client"
 import { changePassword, fetchProfile, updateProfile, uploadProfileImage } from "@/lib/api/profile"
+import { createAdmin } from "@/lib/api/admin"
 
 function getErrorMessage(error: unknown): string {
   return error instanceof ApiError ? error.message : "Something went wrong. Please try again."
@@ -32,6 +33,12 @@ export default function AdminSettingsPage() {
   const [currentPassword, setCurrentPassword] = useState("")
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
+
+  const [isAddingAdmin, setIsAddingAdmin] = useState(false)
+  const [newAdminFirstName, setNewAdminFirstName] = useState("")
+  const [newAdminLastName, setNewAdminLastName] = useState("")
+  const [newAdminEmail, setNewAdminEmail] = useState("")
+  const [newAdminPassword, setNewAdminPassword] = useState("")
 
   useEffect(() => {
     let isCancelled = false
@@ -105,6 +112,28 @@ export default function AdminSettingsPage() {
     }
   }
 
+  const handleAddAdmin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsAddingAdmin(true)
+    try {
+      const admin = await createAdmin({
+        email: newAdminEmail,
+        password: newAdminPassword,
+        firstName: newAdminFirstName,
+        lastName: newAdminLastName,
+      })
+      addNotification(`${admin.email} can now sign in as an admin`, "success")
+      setNewAdminFirstName("")
+      setNewAdminLastName("")
+      setNewAdminEmail("")
+      setNewAdminPassword("")
+    } catch (error) {
+      addNotification(getErrorMessage(error), "error")
+    } finally {
+      setIsAddingAdmin(false)
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="p-6">
@@ -165,7 +194,7 @@ export default function AdminSettingsPage() {
               <div className="space-y-2">
                 <Label htmlFor="adminEmail">Email</Label>
                 <Input id="adminEmail" type="email" value={user?.email ?? ""} disabled />
-                <p className="text-xs text-gray-500">Email can't be changed here.</p>
+                <p className="text-xs text-gray-500">Email can&apos;t be changed here.</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="adminPhone">Phone</Label>
@@ -225,6 +254,65 @@ export default function AdminSettingsPage() {
                 className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
               >
                 {isChangingPassword ? "Updating..." : "Update Password"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+
+        {/* Add Admin */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Add Admin</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleAddAdmin} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="newAdminFirstName">First Name</Label>
+                  <Input
+                    id="newAdminFirstName"
+                    value={newAdminFirstName}
+                    onChange={(e) => setNewAdminFirstName(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="newAdminLastName">Last Name</Label>
+                  <Input
+                    id="newAdminLastName"
+                    value={newAdminLastName}
+                    onChange={(e) => setNewAdminLastName(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="newAdminEmail">Email</Label>
+                <Input
+                  id="newAdminEmail"
+                  type="email"
+                  value={newAdminEmail}
+                  onChange={(e) => setNewAdminEmail(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="newAdminPassword">Temporary Password</Label>
+                <Input
+                  id="newAdminPassword"
+                  type="text"
+                  value={newAdminPassword}
+                  onChange={(e) => setNewAdminPassword(e.target.value)}
+                  required
+                />
+                <p className="text-xs text-gray-500">
+                  Share this with them directly - they should change it after signing in.
+                </p>
+              </div>
+              <Button
+                type="submit"
+                disabled={isAddingAdmin}
+                className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+              >
+                {isAddingAdmin ? "Adding..." : "Add Admin"}
               </Button>
             </form>
           </CardContent>
