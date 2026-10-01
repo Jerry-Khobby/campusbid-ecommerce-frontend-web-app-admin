@@ -60,23 +60,21 @@ export default function AdminPayoutsPage() {
   const [rejectReason, setRejectReason] = useState("")
   const [isRejecting, setIsRejecting] = useState(false)
 
-  const loadPayouts = async (status: string) => {
-    setIsLoading(true)
-    setLoadError(null)
-    try {
-      const data = await fetchAdminPayouts(status === "all" ? undefined : (status as PayoutStatus))
-      setPayouts(data)
-    } catch (error) {
-      setLoadError(getErrorMessage(error))
-    } finally {
-      setIsLoading(false)
-    }
-  }
+  const loadPayouts = (status: string) =>
+    fetchAdminPayouts(status === "all" ? undefined : (status as PayoutStatus))
+      .then(setPayouts)
+      .catch((error) => setLoadError(getErrorMessage(error)))
+      .finally(() => setIsLoading(false))
 
   useEffect(() => {
     loadPayouts(statusFilter)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter])
+
+  const changeStatusFilter = (status: string) => {
+    setIsLoading(true)
+    setLoadError(null)
+    setStatusFilter(status)
+  }
 
   const handleApprove = async (payout: AdminPayout) => {
     setActioningId(payout._id)
@@ -158,7 +156,7 @@ export default function AdminPayoutsPage() {
         </CardHeader>
         <CardContent>
           <div className="flex gap-4 mb-4">
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <Select value={statusFilter} onValueChange={changeStatusFilter}>
               <SelectTrigger className="w-48">
                 <SelectValue placeholder="Filter by status" />
               </SelectTrigger>

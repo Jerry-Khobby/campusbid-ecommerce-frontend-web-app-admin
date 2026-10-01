@@ -81,7 +81,7 @@ export default function AdminForgotPasswordPage() {
               </div>
               <div className="space-y-2">
                 <p className="text-sm text-gray-600">
-                  We've sent a password reset link to <strong>{email}</strong>
+                  We&apos;ve sent a password reset link to <strong>{email}</strong>
                 </p>
                 <p className="text-sm text-gray-600">
                   Please check your email and follow the instructions to reset your password.
