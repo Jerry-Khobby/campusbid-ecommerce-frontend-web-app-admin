@@ -141,6 +141,7 @@ export default function AdminOrdersPage() {
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Order & Transaction Monitoring</h1>
           <p className="text-gray-600 mt-1">Track all orders and transactions across the platform</p>
+          <p className="text-sm text-gray-500 mt-2 max-w-3xl">Disputed orders need you: filter by Disputed, open one with View Details, read the customer&apos;s report, then refund the customer or release the payment to the vendor.</p>
         </div>
       </div>
 

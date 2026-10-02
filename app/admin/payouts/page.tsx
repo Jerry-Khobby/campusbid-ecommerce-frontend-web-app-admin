@@ -42,10 +42,12 @@ function getVendorName(vendor: AdminPayout["vendorId"]): string {
   return vendor.profile?.businessName || vendor.email
 }
 
+// Approving sends to the vendor's current details, so those are what is shown;
+// the request-time snapshot is empty when the vendor added details afterwards.
 function getPayoutDestination(payout: AdminPayout): string {
-  const snapshot = payout.bankSnapshot
-  if (!snapshot?.momoProvider || !snapshot?.accountNumber) return "Mobile money details not set"
-  return `${snapshot.momoProvider.toUpperCase()} · ${snapshot.accountNumber}${snapshot.accountName ? ` (${snapshot.accountName})` : ""}`
+  const destination = payout.vendorId?.bankDetails ?? payout.bankSnapshot
+  if (!destination?.momoProvider || !destination?.accountNumber) return "Mobile money details not set"
+  return `${destination.momoProvider.toUpperCase()} · ${destination.accountNumber}${destination.accountName ? ` (${destination.accountName})` : ""}`
 }
 
 export default function AdminPayoutsPage() {
@@ -127,6 +129,7 @@ export default function AdminPayoutsPage() {
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Vendor Payouts</h1>
         <p className="text-gray-600 mt-1">Review payout requests and send mobile money transfers to vendors</p>
+        <p className="text-sm text-gray-500 mt-2 max-w-3xl">Vendors request payouts from their CampusBid balance. Check the mobile money destination, then Approve &amp; Send or Reject with a reason. Sending needs Transfers enabled on the Paystack account.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -214,8 +217,12 @@ export default function AdminPayoutsPage() {
                         <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(payout.status)}`}>
                           {formatStatus(payout.status)}
                         </span>
-                        {payout.status === "failed" && payout.failureReason && (
-                          <p className="text-xs text-red-600 mt-1 max-w-[200px]">{payout.failureReason}</p>
+                        {/* A failed approval puts the request back to "requested", so its
+                            reason is kept visible for the next attempt. */}
+                        {payout.failureReason && payout.status !== "completed" && (
+                          <p className="text-xs text-red-600 mt-1 max-w-[200px]">
+                            {payout.status === "requested" ? `Last attempt failed: ${payout.failureReason}` : payout.failureReason}
+                          </p>
                         )}
                       </td>
                       <td className="px-4 py-4">

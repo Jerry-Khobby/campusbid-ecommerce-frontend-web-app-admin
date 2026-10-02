@@ -16,6 +16,7 @@ import {
   type PaymentParty,
   type PaymentStatus,
 } from "@/lib/api/payments"
+import type { PayoutStatus } from "@/lib/api/payouts"
 import { formatCurrency } from "@/lib/format"
 
 const SEARCH_DEBOUNCE_MS = 300
@@ -25,8 +26,36 @@ function getErrorMessage(error: unknown): string {
   return error instanceof ApiError ? error.message : "Something went wrong. Please try again."
 }
 
+// "Released" only means escrow released the money into the vendor's CampusBid
+// balance; the money leaves the platform when a payout is approved.
+const STATUS_LABELS: Record<PaymentStatus, string> = {
+  pending: "Pending",
+  held: "Held in escrow",
+  released: "In vendor balance",
+  refunded: "Refunded",
+  failed: "Failed",
+}
+
+const PAYOUT_LABELS: Record<PayoutStatus, string> = {
+  requested: "Payout requested",
+  processing: "Transfer processing",
+  completed: "Paid out",
+  failed: "Payout failed",
+}
+
 function formatStatus(status: string): string {
-  return status.charAt(0).toUpperCase() + status.slice(1)
+  return STATUS_LABELS[status as PaymentStatus] ?? status
+}
+
+function describePayout(payment: AdminPayment): { label: string; className: string } {
+  if (payment.status !== "released") return { label: "—", className: "text-gray-400" }
+  if (!payment.payoutId) return { label: "Not requested yet", className: "text-gray-600" }
+
+  const isPaidOut = payment.payoutId.status === "completed"
+  return {
+    label: PAYOUT_LABELS[payment.payoutId.status],
+    className: isPaidOut ? "text-green-700 font-medium" : "text-amber-700 font-medium",
+  }
 }
 
 function getStatusColor(status: string): string {
@@ -122,7 +151,8 @@ export default function AdminPaymentsPage() {
   }
 
   const totalHeld = payments.filter((p) => p.status === "held").reduce((sum, p) => sum + p.amount, 0)
-  const totalReleased = payments.filter((p) => p.status === "released").reduce((sum, p) => sum + p.amount, 0)
+  // The vendors' share after commission - what they can withdraw or have withdrawn.
+  const totalReleased = payments.filter((p) => p.status === "released").reduce((sum, p) => sum + p.vendorPayout, 0)
   const totalRefunded = payments.filter((p) => p.status === "refunded").reduce((sum, p) => sum + p.amount, 0)
 
   return (
@@ -130,6 +160,7 @@ export default function AdminPaymentsPage() {
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Payment Management</h1>
         <p className="text-gray-600 mt-1">Review payments and correct their status when a dispute needs it</p>
+        <p className="text-sm text-gray-500 mt-2 max-w-3xl">Held in escrow: waiting for the customer to confirm delivery. In vendor balance: the vendor can request a payout; the Payout column shows whether the money has been sent.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -148,7 +179,7 @@ export default function AdminPaymentsPage() {
         <Card>
           <CardContent className="pt-6">
             <div className="text-2xl font-bold text-gray-900">{formatCurrency(totalReleased)}</div>
-            <p className="text-sm text-gray-600">Released to Vendors</p>
+            <p className="text-sm text-gray-600">Released to vendor balances</p>
           </CardContent>
         </Card>
         <Card>
@@ -201,6 +232,7 @@ export default function AdminPaymentsPage() {
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Vendor</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Payout</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                 </tr>
@@ -208,7 +240,7 @@ export default function AdminPaymentsPage() {
               <tbody className="divide-y divide-gray-200">
                 {isLoading && (
                   <tr>
-                    <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">
+                    <td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-500">
                       Loading payments...
                     </td>
                   </tr>
@@ -244,6 +276,9 @@ export default function AdminPaymentsPage() {
                         </span>
                       </td>
                       <td className="px-4 py-4">
+                        <p className={`text-sm ${describePayout(payment).className}`}>{describePayout(payment).label}</p>
+                      </td>
+                      <td className="px-4 py-4">
                         <p className="text-sm text-gray-600">{new Date(payment.createdAt).toLocaleDateString()}</p>
                       </td>
                       <td className="px-4 py-4">
@@ -255,7 +290,7 @@ export default function AdminPaymentsPage() {
                   ))}
                 {!isLoading && !loadError && filteredPayments.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">
+                    <td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-500">
                       No payments match your search.
                     </td>
                   </tr>
