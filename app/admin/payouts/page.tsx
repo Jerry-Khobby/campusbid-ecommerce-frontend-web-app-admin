@@ -42,10 +42,12 @@ function getVendorName(vendor: AdminPayout["vendorId"]): string {
   return vendor.profile?.businessName || vendor.email
 }
 
+// Approving sends to the vendor's current details, so those are what is shown;
+// the request-time snapshot is empty when the vendor added details afterwards.
 function getPayoutDestination(payout: AdminPayout): string {
-  const snapshot = payout.bankSnapshot
-  if (!snapshot?.momoProvider || !snapshot?.accountNumber) return "Mobile money details not set"
-  return `${snapshot.momoProvider.toUpperCase()} · ${snapshot.accountNumber}${snapshot.accountName ? ` (${snapshot.accountName})` : ""}`
+  const destination = payout.vendorId?.bankDetails ?? payout.bankSnapshot
+  if (!destination?.momoProvider || !destination?.accountNumber) return "Mobile money details not set"
+  return `${destination.momoProvider.toUpperCase()} · ${destination.accountNumber}${destination.accountName ? ` (${destination.accountName})` : ""}`
 }
 
 export default function AdminPayoutsPage() {
@@ -214,8 +216,12 @@ export default function AdminPayoutsPage() {
                         <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(payout.status)}`}>
                           {formatStatus(payout.status)}
                         </span>
-                        {payout.status === "failed" && payout.failureReason && (
-                          <p className="text-xs text-red-600 mt-1 max-w-[200px]">{payout.failureReason}</p>
+                        {/* A failed approval puts the request back to "requested", so its
+                            reason is kept visible for the next attempt. */}
+                        {payout.failureReason && payout.status !== "completed" && (
+                          <p className="text-xs text-red-600 mt-1 max-w-[200px]">
+                            {payout.status === "requested" ? `Last attempt failed: ${payout.failureReason}` : payout.failureReason}
+                          </p>
                         )}
                       </td>
                       <td className="px-4 py-4">

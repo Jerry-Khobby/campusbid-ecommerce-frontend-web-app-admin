@@ -3,15 +3,23 @@ import type { PaymentParty } from "./payments"
 
 export type PayoutStatus = "requested" | "processing" | "completed" | "failed"
 
+export interface MomoDestination {
+  accountName?: string
+  accountNumber?: string
+  momoProvider?: string
+}
+
 export interface AdminPayout {
   _id: string
-  vendorId: PaymentParty
+  /** bankDetails are the vendor's current details - the ones approval sends to. */
+  vendorId: PaymentParty & { bankDetails?: MomoDestination }
   amount: number
   paymentIds: string[]
   status: PayoutStatus
   requestedAt: string
   completedAt?: string
-  bankSnapshot?: { accountName?: string; accountNumber?: string; momoProvider?: string }
+  /** The vendor's details when the payout was requested; may predate later edits. */
+  bankSnapshot?: MomoDestination
   adminNote?: string
   failureReason?: string
   recipientCode?: string
