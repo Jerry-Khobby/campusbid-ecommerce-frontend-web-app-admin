@@ -129,6 +129,7 @@ export default function AdminPayoutsPage() {
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Vendor Payouts</h1>
         <p className="text-gray-600 mt-1">Review payout requests and send mobile money transfers to vendors</p>
+        <p className="text-sm text-gray-500 mt-2 max-w-3xl">Vendors request payouts from their CampusBid balance. Check the mobile money destination, then Approve &amp; Send or Reject with a reason. Sending needs Transfers enabled on the Paystack account.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

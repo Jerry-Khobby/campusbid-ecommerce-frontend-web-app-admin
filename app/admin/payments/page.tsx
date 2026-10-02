@@ -160,6 +160,7 @@ export default function AdminPaymentsPage() {
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Payment Management</h1>
         <p className="text-gray-600 mt-1">Review payments and correct their status when a dispute needs it</p>
+        <p className="text-sm text-gray-500 mt-2 max-w-3xl">Held in escrow: waiting for the customer to confirm delivery. In vendor balance: the vendor can request a payout; the Payout column shows whether the money has been sent.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
