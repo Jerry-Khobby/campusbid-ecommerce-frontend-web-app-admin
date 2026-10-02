@@ -16,27 +16,38 @@ interface NotificationContextType {
   removeNotification: (id: string) => void
 }
 
+const DEFAULT_NOTIFICATION_DURATION_MS = 3000
+
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined)
+
+// Date.now() alone repeats when two notifications are raised in the same
+// millisecond, and dismissing one would then remove both.
+let notificationIdCounter = 0
+function createNotificationId(): string {
+  notificationIdCounter += 1
+  return `${Date.now()}-${notificationIdCounter}`
+}
 
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>([])
 
-  const addNotification = useCallback((message: string, type: Notification["type"] = "info", duration = 3000) => {
-    const id = Date.now().toString()
-    const notification: Notification = { id, message, type, duration }
-
-    setNotifications((prev) => [...prev, notification])
-
-    if (duration > 0) {
-      setTimeout(() => {
-        removeNotification(id)
-      }, duration)
-    }
-  }, [])
-
   const removeNotification = useCallback((id: string) => {
     setNotifications((prev) => prev.filter((n) => n.id !== id))
   }, [])
+
+  const addNotification = useCallback(
+    (message: string, type: Notification["type"] = "info", duration = DEFAULT_NOTIFICATION_DURATION_MS) => {
+      const id = createNotificationId()
+      const notification: Notification = { id, message, type, duration }
+
+      setNotifications((prev) => [...prev, notification])
+
+      if (duration > 0) {
+        setTimeout(() => removeNotification(id), duration)
+      }
+    },
+    [removeNotification],
+  )
 
   return (
     <NotificationContext.Provider value={{ notifications, addNotification, removeNotification }}>

@@ -47,21 +47,23 @@ export default function AdminCategoriesPage() {
   const [form, setForm] = useState<CategoryFormState>(EMPTY_FORM);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const loadCategories = async () => {
-    setIsLoading(true);
-    setLoadError(null);
-    try {
-      const data = await fetchAdminCategories();
-      setCategories(data);
-    } catch (error) {
-      setLoadError(getErrorMessage(error));
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   useEffect(() => {
-    loadCategories();
+    let isCancelled = false;
+
+    fetchAdminCategories()
+      .then((data) => {
+        if (!isCancelled) setCategories(data);
+      })
+      .catch((error) => {
+        if (!isCancelled) setLoadError(getErrorMessage(error));
+      })
+      .finally(() => {
+        if (!isCancelled) setIsLoading(false);
+      });
+
+    return () => {
+      isCancelled = true;
+    };
   }, []);
 
   const openCreateForm = () => {

@@ -80,6 +80,9 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
+    // The stored session lives in localStorage, which the server render cannot
+    // read, so it can only be restored after hydration.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setUser(readStoredUser());
     setIsLoading(false);
     refetchUser();
