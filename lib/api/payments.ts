@@ -1,4 +1,5 @@
 import { apiFetch } from "./client"
+import type { PayoutStatus } from "./payouts"
 
 export type PaymentStatus = "pending" | "held" | "released" | "refunded" | "failed"
 
@@ -22,6 +23,10 @@ export interface AdminPayment {
   transactionId: string
   adminCommission: number
   vendorPayout: number
+  /** Set once the vendor has requested a payout covering this payment. Rejected
+   * or failed payouts release their payments, so a linked payout is always
+   * requested, processing or completed. */
+  payoutId?: { _id: string; status: PayoutStatus } | null
   createdAt: string
   updatedAt: string
 }
