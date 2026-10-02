@@ -60,6 +60,14 @@ export interface AdminOrderParty {
   profile?: { firstName?: string; lastName?: string; businessName?: string }
 }
 
+export interface AdminOrderDispute {
+  reason: string
+  openedAt: string
+  resolution?: "refund" | "release"
+  resolutionNote?: string
+  resolvedAt?: string
+}
+
 export interface AdminOrder {
   _id: string
   orderNumber: string
@@ -68,6 +76,7 @@ export interface AdminOrder {
   items: AdminOrderItem[]
   pricing: { subtotal: number; deliveryFee: number; serviceFee: number; total: number }
   status: string
+  dispute?: AdminOrderDispute
   createdAt: string
 }
 

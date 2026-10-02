@@ -11,6 +11,7 @@ import { ApiError } from "@/lib/api/client"
 import { fetchAdminOrders } from "@/lib/api/orders"
 import type { AdminOrder } from "@/lib/api/types"
 import { formatCurrency } from "@/lib/format"
+import { DisputeReviewPanel } from "@/components/admin/dispute-review-panel"
 
 const SEARCH_DEBOUNCE_MS = 300
 
@@ -21,6 +22,7 @@ const STATUS_OPTIONS = [
   "ready",
   "out_for_delivery",
   "delivered",
+  "disputed",
   "completed",
   "cancelled",
   "refunded",
@@ -50,6 +52,8 @@ function getStatusColor(status: string): string {
       return "bg-purple-100 text-purple-700"
     case "pending":
       return "bg-yellow-100 text-yellow-700"
+    case "disputed":
+      return "bg-amber-100 text-amber-800"
     case "cancelled":
     case "refunded":
       return "bg-red-100 text-red-700"
@@ -112,9 +116,19 @@ export default function AdminOrdersPage() {
     setIsViewDialogOpen(true)
   }
 
+  // The resolve response carries ids, not the populated customer/vendor, so
+  // only the fields the resolution changed are merged into the shown order.
+  const handleDisputeResolved = (resolved: AdminOrder) => {
+    const applyResolution = (order: AdminOrder) =>
+      order._id === resolved._id ? { ...order, status: resolved.status, dispute: resolved.dispute } : order
+    setOrders((current) => current.map(applyResolution))
+    setSelectedOrder((current) => (current ? applyResolution(current) : current))
+  }
+
   const totalOrders = orders.length
   const completedOrders = orders.filter((o) => o.status === "completed").length
   const pendingOrders = orders.filter((o) => o.status === "pending").length
+  const openDisputes = orders.filter((o) => o.status === "disputed").length
   // Matches the backend dashboard's totalRevenue: only orders that actually completed count as revenue.
   const totalRevenue = orders
     .filter((o) => o.status === "completed")
@@ -131,7 +145,7 @@ export default function AdminOrdersPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="text-2xl font-bold text-gray-900">{totalOrders}</div>
@@ -148,6 +162,12 @@ export default function AdminOrdersPage() {
           <CardContent className="pt-6">
             <div className="text-2xl font-bold text-gray-900">{pendingOrders}</div>
             <p className="text-sm text-gray-600">Pending</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-2xl font-bold text-gray-900">{openDisputes}</div>
+            <p className="text-sm text-gray-600">Open Disputes</p>
           </CardContent>
         </Card>
         <Card>
@@ -328,6 +348,8 @@ export default function AdminOrdersPage() {
                   </span>
                 </div>
               </div>
+
+              <DisputeReviewPanel key={selectedOrder._id} order={selectedOrder} onResolved={handleDisputeResolved} />
             </div>
           )}
         </DialogContent>
